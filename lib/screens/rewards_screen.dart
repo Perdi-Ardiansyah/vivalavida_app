@@ -1,0 +1,351 @@
+import 'package:flutter/material.dart';
+
+class RewardsScreen extends StatelessWidget {
+  const RewardsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: Text(
+          'Rewards',
+          style: theme.textTheme.headlineMedium?.copyWith(
+            color: theme.colorScheme.primary,
+            fontSize: 22,
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // --- 1. KARTU MEMBER (HEADER) ---
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.colorScheme.primary.withOpacity(0.3),
+                    blurRadius: 15,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Vivalavida Rewards',
+                    style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '1,250',
+                        style: theme.textTheme.headlineLarge?.copyWith(color: Colors.white, fontSize: 36),
+                      ),
+                      const SizedBox(width: 4),
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 6.0),
+                        child: Text('pts', style: TextStyle(color: Colors.white, fontSize: 16)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Badge Gold Member
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.stars, color: Colors.white, size: 14),
+                        SizedBox(width: 4),
+                        Text('Gold Member', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // Expiring Soon Progress
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Expiring Soon', style: TextStyle(color: Colors.white70, fontSize: 10)),
+                      const Text('120 pts', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: 0.8, // 80% dari bar penuh
+                      minHeight: 4,
+                      backgroundColor: Colors.white.withOpacity(0.2),
+                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text('Ends on Oct 31, 2024', style: TextStyle(color: Colors.white70, fontSize: 10, fontStyle: FontStyle.italic)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+
+            // --- 2. VOUCHER SAYA ---
+            _buildSectionTitle(theme, 'Voucher Saya'),
+            const SizedBox(height: 12),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFBDCCE).withOpacity(0.5), // Light Orange
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.local_activity_outlined, color: Color(0xFF705A4F)),
+                ),
+                title: Text('2 Voucher Tersedia', style: theme.textTheme.labelSmall?.copyWith(fontSize: 14)),
+                subtitle: Text('Gunakan sebelum kedaluwarsa', style: theme.textTheme.bodyMedium?.copyWith(fontSize: 11)),
+                trailing: const Icon(Icons.chevron_right, color: Color(0xFF6D7A73)),
+                onTap: () {},
+              ),
+            ),
+            const SizedBox(height: 32),
+
+            // --- 3. TUKAR POIN ---
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildSectionTitle(theme, 'Tukar Poin'),
+                TextButton(
+                  onPressed: () {},
+                  child: Text('Lihat Semua', style: TextStyle(color: theme.colorScheme.primary, fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+            _buildRedeemCard(
+              theme: theme,
+              icon: Icons.percent,
+              iconBgColor: const Color(0xFFFBDCCE),
+              iconColor: const Color(0xFF705A4F),
+              title: '15% Off Total Bill',
+              subtitle: 'Valid for all menu items',
+              points: '450 pts',
+            ),
+            const SizedBox(height: 12),
+            _buildRedeemCard(
+              theme: theme,
+              icon: Icons.cake_outlined,
+              iconBgColor: const Color(0xFFE6F0EB),
+              iconColor: theme.colorScheme.primary,
+              title: 'Free Seasonal Pastry',
+              subtitle: 'Choice of Croissant or Muffin',
+              points: '600 pts',
+            ),
+            const SizedBox(height: 32),
+
+            // --- 4. RIWAYAT TRANSAKSI & POIN ---
+            _buildSectionTitle(theme, 'Riwayat Transaksi & Poin'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Column(
+                children: [
+                  _buildHistoryItem(
+                    theme: theme,
+                    icon: Icons.coffee,
+                    title: 'Caramel Macchiato',
+                    date: '24 Sep, 14:30',
+                    points: '+45 pts',
+                    price: 'Rp 48.000',
+                    isPositive: true,
+                  ),
+                  const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider(color: Color(0xFFE5E7EB), height: 1)),
+                  _buildHistoryItem(
+                    theme: theme,
+                    icon: Icons.card_giftcard,
+                    title: 'Reward Redeemed',
+                    date: '21 Sep, 10:15',
+                    points: '-200 pts',
+                    price: 'Espresso',
+                    isPositive: false,
+                  ),
+                  const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider(color: Color(0xFFE5E7EB), height: 1)),
+                  _buildHistoryItem(
+                    theme: theme,
+                    icon: Icons.shopping_bag_outlined,
+                    title: 'Bagel & Coffee Combo',
+                    date: '18 Sep, 09:45',
+                    points: '+65 pts',
+                    price: 'Rp 72.000',
+                    isPositive: true,
+                  ),
+                  const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider(color: Color(0xFFE5E7EB), height: 1)),
+                  _buildHistoryItem(
+                    theme: theme,
+                    icon: Icons.cake,
+                    title: 'Birthday Bonus',
+                    date: '15 Sep, 00:00',
+                    points: '+100 pts',
+                    price: 'System',
+                    isPositive: true,
+                  ),
+                  const SizedBox(height: 20),
+                  Center(
+                    child: TextButton(
+                      onPressed: () {},
+                      child: const Text('Lihat Riwayat Lengkap >', style: TextStyle(color: Color(0xFF6D7A73), fontSize: 12)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 40),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- HELPER WIDGETS ---
+
+  Widget _buildSectionTitle(ThemeData theme, String title) {
+    return Text(
+      title,
+      style: theme.textTheme.headlineMedium?.copyWith(fontSize: 18),
+    );
+  }
+
+  Widget _buildRedeemCard({
+    required ThemeData theme,
+    required IconData icon,
+    required Color iconBgColor,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required String points,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: iconBgColor,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: iconColor, size: 28),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: theme.textTheme.labelSmall?.copyWith(fontSize: 14)),
+                const SizedBox(height: 4),
+                Text(subtitle, style: theme.textTheme.bodyMedium?.copyWith(fontSize: 11)),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(points, style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold, fontSize: 12)),
+                    OutlinedButton(
+                      onPressed: () {},
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: theme.colorScheme.primary),
+                        minimumSize: const Size(80, 32),
+                        padding: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: Text('Claim', style: TextStyle(color: theme.colorScheme.primary, fontSize: 12)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHistoryItem({
+    required ThemeData theme,
+    required IconData icon,
+    required String title,
+    required String date,
+    required String points,
+    required String price,
+    required bool isPositive,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: const BoxDecoration(
+            color: Color(0xFFF2F4F8), // Light grey background
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: const Color(0xFF6D7A73), size: 20),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: theme.textTheme.labelSmall?.copyWith(fontSize: 13)),
+              const SizedBox(height: 4),
+              Text(date, style: theme.textTheme.bodyMedium?.copyWith(fontSize: 11)),
+            ],
+          ),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              points,
+              style: TextStyle(
+                color: isPositive ? theme.colorScheme.primary : theme.colorScheme.error,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(price, style: theme.textTheme.bodyMedium?.copyWith(fontSize: 11)),
+          ],
+        ),
+      ],
+    );
+  }
+}
