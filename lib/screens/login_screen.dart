@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'main_screen.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart'; // Import halaman utama (Bottom Navigation)
+import '../services/auth_service.dart'; // PASTIKAN IMPORT INI SESUAI DENGAN LOKASI FOLDERMU
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,6 +14,56 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   // State untuk mengatur visibilitas kata sandi
   bool _obscurePassword = true;
+
+  // --- 1. DEKLARASI CONTROLLER ---
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+
+  // --- 2. FUNGSI LOGIC LOGIN ---
+  void _handleLogin() async {
+    String email = emailController.text.trim();
+    String password = passwordController.text;
+
+    // Validasi input kosong
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email dan password tidak boleh kosong!'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    AuthService authService = AuthService();
+    var result = await authService.login(email, password);
+
+    // Mencegah error context jika halaman sudah ditutup saat proses await
+    if (!mounted) return; 
+
+    if (result['success']) {
+      // Jika sukses, pindah ke HomeScreen / MainScreen
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['message'], style: const TextStyle(color: Colors.white)), backgroundColor: Colors.green),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const MainScreen(),
+        ),
+      );
+    } else {
+      // Jika gagal, tampilkan pesan error dari Laravel
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['message'], style: const TextStyle(color: Colors.white)), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  // --- 3. DISPOSE CONTROLLER UNTUK MENCEGAH MEMORY LEAK ---
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +94,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // --- 1. HEADER (JUDUL) ---
+                  // --- HEADER (JUDUL) ---
                   Text(
                     'Vivalavida',
                     style: theme.textTheme.headlineMedium?.copyWith(
@@ -72,7 +123,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  // --- 2. FORM EMAIL ---
+                  // --- FORM EMAIL ---
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
@@ -85,6 +136,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   TextField(
+                    controller: emailController, // --- 4. SAMBUNGKAN CONTROLLER ---
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
                       hintText: 'nama@email.com',
@@ -115,7 +167,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // --- 3. FORM PASSWORD ---
+                  // --- FORM PASSWORD ---
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -150,6 +202,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   TextField(
+                    controller: passwordController, // --- 5. SAMBUNGKAN CONTROLLER ---
                     obscureText: _obscurePassword,
                     decoration: InputDecoration(
                       hintText: '••••••••',
@@ -194,17 +247,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // --- 4. TOMBOL MASUK ---
+                  // --- TOMBOL MASUK ---
                   ElevatedButton(
-                    onPressed: () {
-                      // Gunakan pushReplacement agar user tidak bisa "back" ke halaman login setelah masuk
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const MainScreen(),
-                        ),
-                      );
-                    },
+                    onPressed: _handleLogin, // --- 6. PANGGIL FUNGSI LOGIN ---
                     style: ElevatedButton.styleFrom(
                       backgroundColor: theme.colorScheme.primary,
                       minimumSize: const Size(double.infinity, 50),
@@ -223,7 +268,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // --- 5. DIVIDER ATAU ---
+                  // --- DIVIDER ATAU ---
                   Row(
                     children: [
                       const Expanded(child: Divider(color: Color(0xFFE5E7EB))),
@@ -242,7 +287,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // --- 6. TOMBOL GOOGLE ---
+                  // --- TOMBOL GOOGLE ---
                   OutlinedButton.icon(
                     onPressed: () {
                       // Aksi login dengan Google
@@ -270,7 +315,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  // --- 7. DAFTAR AKUN BARU ---
+                  // --- DAFTAR AKUN BARU ---
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
