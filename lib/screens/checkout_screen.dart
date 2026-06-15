@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/cart_provider.dart';
 import 'qris_payment_screen.dart';
+import '../services/transaction_service.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -12,12 +15,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   // --- State Variables ---
   String selectedMethod = 'Dine-In';
   String selectedPayment = 'QRIS';
-  int qtyLatte = 1;
-  int qtyCroissant = 2;
 
-  // Harga Statis untuk simulasi
-  final int priceLatte = 45000;
-  final int priceCroissant = 35000; // Harga per item, total 70k untuk 2
   final int discount = 10000;
   final double taxRate = 0.11; // Pajak 11%
 
@@ -37,16 +35,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return 'Rp $result';
   }
 
-  // Kalkulasi Total
-  int get subtotal => (priceLatte * qtyLatte) + (priceCroissant * qtyCroissant);
-  int get tax => (subtotal * taxRate).round();
-  int get grandTotal => subtotal + tax - discount;
-
   // Fungsi untuk memunculkan pop-up pembayaran tunai
   void _showCashPaymentDialog(BuildContext context, ThemeData theme) {
     showDialog(
       context: context,
-      barrierDismissible: false, // User harus menekan tombol "Mengerti" untuk menutup
+      barrierDismissible: false,
       builder: (BuildContext context) {
         return Dialog(
           shape: RoundedRectangleBorder(
@@ -56,13 +49,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           child: Padding(
             padding: const EdgeInsets.all(24.0),
             child: Column(
-              mainAxisSize: MainAxisSize.min, // Agar tinggi kotak menyesuaikan isi
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Ikon Uang Tunai
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: const BoxDecoration(
-                    color: Color(0xFFE6F0EB), // Hijau sangat pudar
+                    color: Color(0xFFE6F0EB),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -72,8 +64,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                
-                // Judul
                 Text(
                   'Pembayaran di Kasir',
                   style: theme.textTheme.headlineMedium?.copyWith(
@@ -83,8 +73,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 12),
-                
-                // Deskripsi
                 Text(
                   'Silakan melunasi pembayaran di kasir untuk menyelesaikan pesanan Anda.',
                   style: theme.textTheme.bodyMedium?.copyWith(
@@ -94,15 +82,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 28),
-                
-                // Tombol Mengerti
                 ElevatedButton(
                   onPressed: () {
-                    // 1. Tutup dialog ini
-                    Navigator.pop(context); 
-                    
-                    // 2. Opsi: Langsung kembali ke Beranda setelah pesan terkirim
-                    // Navigator.popUntil(context, (route) => route.isFirst); 
+                    // Bersihkan keranjang setelah sukses
+                    Provider.of<CartProvider>(context, listen: false).clear();
+                    // Kembali ke halaman utama (Menu)
+                    Navigator.popUntil(context, (route) => route.isFirst);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.primary,
@@ -113,7 +98,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ),
                   child: const Text(
                     'Mengerti',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ],
@@ -127,6 +116,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    // Mengambil data dari CartProvider
+    final cart = Provider.of<CartProvider>(context);
+    final cartItems = cart.items.values.toList();
+
+    // Kalkulasi Total Dinamis
+    final int subtotal = cart.totalAmount;
+    final int tax = (subtotal * taxRate).round();
+    // Pastikan grand total tidak minus jika diskon lebih besar dari subtotal
+    int grandTotal = subtotal + tax - discount;
+    if (grandTotal < 0) grandTotal = 0;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -147,289 +147,471 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // --- 1. PESANAN ANDA ---
-            _buildSectionLabel(theme, 'PESANAN ANDA'),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
-              ),
+      body: cartItems.isEmpty
+          ? Center(
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildOrderItem(
-                    theme: theme,
-                    // Ganti link yang lama dengan link baru ini
-                    imageUrl: 'https://images.unsplash.com/photo-1623334044303-241021148842?q=80&w=200&auto=format&fit=crop',
-                    name: 'Almond Croissant',
-                    price: priceCroissant * qtyCroissant, 
-                    qty: qtyCroissant,
-                    onMinus: () {
-                      if (qtyCroissant > 1) setState(() => qtyCroissant--);
-                    },
-                    onPlus: () => setState(() => qtyCroissant++),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Divider(color: Color(0xFFE5E7EB), height: 1),
-                  ),
-                  _buildOrderItem(
-                    theme: theme,
-                    imageUrl: 'https://images.unsplash.com/photo-1572442388796-11668a67e53d?q=80&w=400&auto=format&fit=crop',
-                    name: 'Almond Croissant',
-                    price: priceCroissant * qtyCroissant, // Menampilkan harga total item
-                    qty: qtyCroissant,
-                    onMinus: () {
-                      if (qtyCroissant > 1) setState(() => qtyCroissant--);
-                    },
-                    onPlus: () => setState(() => qtyCroissant++),
+                  const Icon(
+                    Icons.remove_shopping_cart_outlined,
+                    size: 64,
+                    color: Colors.grey,
                   ),
                   const SizedBox(height: 16),
-                  
-                  // Tombol Tambah Pesanan Lagi
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context); // Kembali ke menu
-                    },
-                    icon: Icon(Icons.add_circle_outline, color: theme.colorScheme.primary, size: 18),
-                    label: Text(
-                      'Tambah Pesanan Lagi',
-                      style: theme.textTheme.labelSmall?.copyWith(color: const Color(0xFF3D4943)),
+                  const Text(
+                    'Keranjang masih kosong',
+                    style: TextStyle(color: Colors.grey, fontSize: 16),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.colorScheme.primary,
                     ),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 48),
-                      side: const BorderSide(color: Color(0xFFE5E7EB)),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: const Text(
+                      'Kembali ke Menu',
+                      style: TextStyle(color: Colors.white),
                     ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 24),
-
-            // --- 2. PILIH METODE ---
-            _buildSectionLabel(theme, 'PILIH METODE'),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildSelectableCard(
-                    theme: theme,
-                    title: 'Dine-In',
-                    icon: Icons.restaurant,
-                    isSelected: selectedMethod == 'Dine-In',
-                    onTap: () => setState(() => selectedMethod = 'Dine-In'),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildSelectableCard(
-                    theme: theme,
-                    title: 'Takeaway',
-                    icon: Icons.shopping_bag_outlined,
-                    isSelected: selectedMethod == 'Takeaway',
-                    onTap: () => setState(() => selectedMethod = 'Takeaway'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Nomor Meja (Tampil jika Dine-In dipilih)
-            if (selectedMethod == 'Dine-In') ...[
-              _buildSectionLabel(theme, 'Nomor Meja', isNormalCase: true),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.table_restaurant_outlined, color: Color(0xFF6D7A73), size: 20),
-                    SizedBox(width: 12),
-                    Text('Pilih Meja', style: TextStyle(color: Color(0xFF3D4943), fontSize: 14)),
-                    Spacer(),
-                    Icon(Icons.keyboard_arrow_down, color: Color(0xFF6D7A73)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
-
-            // --- 3. PILIH PEMBAYARAN ---
-            _buildSectionLabel(theme, 'PILIH PEMBAYARAN'),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildSelectableCard(
-                    theme: theme,
-                    title: 'Cash',
-                    icon: Icons.payments_outlined,
-                    isSelected: selectedPayment == 'Cash',
-                    onTap: () => setState(() => selectedPayment = 'Cash'),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildSelectableCard(
-                    theme: theme,
-                    title: 'QRIS',
-                    icon: Icons.qr_code_scanner,
-                    isSelected: selectedPayment == 'QRIS',
-                    showCheckmark: true,
-                    onTap: () => setState(() => selectedPayment = 'QRIS'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // --- 4. PILIH VOUCHER ---
-            _buildSectionLabel(theme, 'PILIH VOUCHER'),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: theme.colorScheme.primary),
-              ),
-              child: Row(
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.local_activity_outlined, color: theme.colorScheme.primary),
-                  const SizedBox(width: 12),
-                  Expanded(
+                  // --- 1. PESANAN ANDA ---
+                  _buildSectionLabel(theme, 'PESANAN ANDA'),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                    ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Voucher COFFEE10 Terpakai', style: theme.textTheme.labelSmall),
-                        const SizedBox(height: 2),
+                        // Looping daftar pesanan dari Provider
+                        ...cartItems.asMap().entries.map((entry) {
+                          int index = entry.key;
+                          CartItem item = entry.value;
+
+                          return Column(
+                            children: [
+                              _buildOrderItem(
+                                theme: theme,
+                                imageUrl: item.imageUrl,
+                                name: item.name,
+                                price: item.price * item.quantity,
+                                qty: item.quantity,
+                                onMinus: () {
+                                  cart.reduceQuantity(item.menuId);
+                                },
+                                onPlus: () {
+                                  cart.addItem(
+                                    item.menuId,
+                                    item.name,
+                                    item.price,
+                                    item.imageUrl,
+                                    1,
+                                  );
+                                },
+                              ),
+                              // Beri garis pembatas antar item (kecuali item terakhir)
+                              if (index < cartItems.length - 1)
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 12),
+                                  child: Divider(
+                                    color: Color(0xFFE5E7EB),
+                                    height: 1,
+                                  ),
+                                ),
+                            ],
+                          );
+                        }),
+
+                        const SizedBox(height: 16),
+
+                        // Tombol Tambah Pesanan Lagi
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context); // Kembali ke menu
+                          },
+                          icon: Icon(
+                            Icons.add_circle_outline,
+                            color: theme.colorScheme.primary,
+                            size: 18,
+                          ),
+                          label: Text(
+                            'Tambah Pesanan Lagi',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: const Color(0xFF3D4943),
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(double.infinity, 48),
+                            side: const BorderSide(color: Color(0xFFE5E7EB)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // --- 2. PILIH METODE ---
+                  _buildSectionLabel(theme, 'PILIH METODE'),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildSelectableCard(
+                          theme: theme,
+                          title: 'Dine-In',
+                          icon: Icons.restaurant,
+                          isSelected: selectedMethod == 'Dine-In',
+                          onTap: () =>
+                              setState(() => selectedMethod = 'Dine-In'),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildSelectableCard(
+                          theme: theme,
+                          title: 'Takeaway',
+                          icon: Icons.shopping_bag_outlined,
+                          isSelected: selectedMethod == 'Takeaway',
+                          onTap: () =>
+                              setState(() => selectedMethod = 'Takeaway'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Nomor Meja
+                  if (selectedMethod == 'Dine-In') ...[
+                    _buildSectionLabel(theme, 'Nomor Meja', isNormalCase: true),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.table_restaurant_outlined,
+                            color: Color(0xFF6D7A73),
+                            size: 20,
+                          ),
+                          SizedBox(width: 12),
+                          Text(
+                            'Pilih Meja',
+                            style: TextStyle(
+                              color: Color(0xFF3D4943),
+                              fontSize: 14,
+                            ),
+                          ),
+                          Spacer(),
+                          Icon(
+                            Icons.keyboard_arrow_down,
+                            color: Color(0xFF6D7A73),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+
+                  // --- 3. PILIH PEMBAYARAN ---
+                  _buildSectionLabel(theme, 'PILIH PEMBAYARAN'),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildSelectableCard(
+                          theme: theme,
+                          title: 'Cash',
+                          icon: Icons.payments_outlined,
+                          isSelected: selectedPayment == 'Cash',
+                          onTap: () => setState(() => selectedPayment = 'Cash'),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildSelectableCard(
+                          theme: theme,
+                          title: 'QRIS',
+                          icon: Icons.qr_code_scanner,
+                          isSelected: selectedPayment == 'QRIS',
+                          showCheckmark: true,
+                          onTap: () => setState(() => selectedPayment = 'QRIS'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  // --- 4. PILIH VOUCHER ---
+                  _buildSectionLabel(theme, 'PILIH VOUCHER'),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: theme.colorScheme.primary),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.local_activity_outlined,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Voucher COFFEE10 Terpakai',
+                                style: theme.textTheme.labelSmall,
+                              ),
+                              const SizedBox(height: 2),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.check_circle,
+                                    color: theme.colorScheme.primary,
+                                    size: 12,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Hemat Rp 10.000',
+                                    style: TextStyle(
+                                      color: theme.colorScheme.primary,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          'Ubah >',
+                          style: TextStyle(
+                            color: theme.colorScheme.primary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // --- 5. RINGKASAN PEMBAYARAN ---
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                    ),
+                    child: Column(
+                      children: [
+                        _buildSummaryRow('Subtotal', formatRp(subtotal)),
+                        const SizedBox(height: 12),
+                        _buildSummaryRow('Pajak (11%)', formatRp(tax)),
+                        const SizedBox(height: 12),
+                        _buildSummaryRow(
+                          'Diskon Voucher',
+                          '- ${formatRp(discount)}',
+                          icon: Icons.local_offer,
+                          textColor: theme.colorScheme.error,
+                        ),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Divider(color: Color(0xFFE5E7EB), height: 1),
+                        ),
                         Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Icon(Icons.check_circle, color: theme.colorScheme.primary, size: 12),
-                            const SizedBox(width: 4),
-                            Text('Hemat Rp 10.000', style: TextStyle(color: theme.colorScheme.primary, fontSize: 10)),
+                            Text(
+                              'Total',
+                              style: theme.textTheme.headlineMedium?.copyWith(
+                                fontSize: 18,
+                              ),
+                            ),
+                            Text(
+                              formatRp(grandTotal),
+                              style: theme.textTheme.headlineMedium?.copyWith(
+                                fontSize: 18,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
                           ],
                         ),
                       ],
                     ),
                   ),
-                  Text('Ubah >', style: TextStyle(color: theme.colorScheme.primary, fontSize: 12, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF2F4F8),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Lihat Voucher Tersedia', style: TextStyle(color: Color(0xFF3D4943), fontSize: 12)),
-                  Icon(Icons.chevron_right, size: 18, color: Color(0xFF6D7A73)),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // --- 5. RINGKASAN PEMBAYARAN ---
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
-              ),
-              child: Column(
-                children: [
-                  _buildSummaryRow('Subtotal', formatRp(subtotal)),
-                  const SizedBox(height: 12),
-                  _buildSummaryRow('Pajak (11%)', formatRp(tax)),
-                  const SizedBox(height: 12),
-                  _buildSummaryRow(
-                    'Diskon Voucher', 
-                    '- ${formatRp(discount)}', 
-                    icon: Icons.local_offer, 
-                    textColor: theme.colorScheme.error,
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    child: Divider(color: Color(0xFFE5E7EB), height: 1),
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Total', style: theme.textTheme.headlineMedium?.copyWith(fontSize: 18)),
-                      Text(
-                        formatRp(grandTotal),
-                        style: theme.textTheme.headlineMedium?.copyWith(fontSize: 18, color: theme.colorScheme.primary),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 40),
-          ],
-        ),
-      ),
 
       // --- 6. TOMBOL KONFIRMASI ---
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: ElevatedButton(
-            onPressed: () {
-              // --- Logika Navigasi Pembayaran ---
-              if (selectedPayment == 'QRIS') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    // Kita kirimkan nilai grandTotal ke halaman QRIS
-                    builder: (context) => QrisPaymentScreen(totalAmount: grandTotal),
+      bottomNavigationBar: cartItems.isEmpty
+          ? null
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: ElevatedButton(
+                  onPressed: () async {
+                    if (selectedPayment == 'QRIS') {
+                      try {
+                        // 1. Tampilkan loading
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (context) =>
+                              const Center(child: CircularProgressIndicator()),
+                        );
+
+                        // 2. Siapkan Data untuk API
+                        final cartItems = Provider.of<CartProvider>(
+                          context,
+                          listen: false,
+                        ).items.values.toList();
+                        final List<Map<String, dynamic>> itemsList = cartItems
+                            .map((item) {
+                              return {
+                                'menu_id': item.menuId,
+                                'jumlah': item.quantity,
+                                'harga_satuan': item.price,
+                              };
+                            })
+                            .toList();
+
+                        final payload = {
+                          'tipe_pesanan': selectedMethod == 'Dine-In'
+                              ? 'dine_in'
+                              : 'takeaway',
+                          'meja_id': null, // Sesuaikan jika ada ID meja dinamis
+                          'alamat_pengiriman_id': null,
+                          'items': itemsList,
+                          'voucher_id':
+                              null, // Sesuaikan jika ada logika voucher
+                          'diskon_voucher': discount,
+                          'metode_pembayaran': 'qris',
+                        };
+
+                        // 3. Tembak API
+                        final TransactionService service = TransactionService();
+                        final response = await service.checkout(payload);
+
+                        // Tutup loading
+                        if (mounted) Navigator.pop(context);
+
+                        if (response['success'] == true) {
+                          final snapToken = response['data']['snap_token'];
+
+                          // 4. Bersihkan Keranjang
+                          if (mounted) {
+                            Provider.of<CartProvider>(
+                              context,
+                              listen: false,
+                            ).clear();
+                          }
+
+                          // 5. Pindah ke Halaman Pembayaran Midtrans
+                          if (response['success'] == true) {
+                            final orderId = response['data']['order_id'];
+                            final qrUrl = response['data']['qr_url'] ?? '';
+
+                            // 4. Bersihkan Keranjang
+                            if (mounted) {
+                              Provider.of<CartProvider>(
+                                context,
+                                listen: false,
+                              ).clear();
+                            }
+
+                            // 5. Pindah ke Halaman Pembayaran Custom
+                            if (mounted) {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => QrisPaymentScreen(
+                                    totalAmount: grandTotal,
+                                    orderId: orderId,
+                                    qrUrl: qrUrl,
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          Navigator.pop(context); // Tutup loading
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error: ${e.toString()}'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
+                    } else {
+                      _showCashPaymentDialog(context, theme);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.colorScheme.primary,
+                    minimumSize: const Size(double.infinity, 56),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
-                );
-              } else {
-                // Tampilkan pesan atau navigasi jika metode pembayarannya Cash
-                _showCashPaymentDialog(context, theme);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: theme.colorScheme.primary,
-              minimumSize: const Size(double.infinity, 56),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Konfirmasi & Pesan',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Icon(Icons.arrow_forward, color: Colors.white, size: 18),
+                    ],
+                  ),
+                ),
+              ),
             ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('Konfirmasi & Pesan', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
-                SizedBox(width: 8),
-                Icon(Icons.arrow_forward, color: Colors.white, size: 18),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 
   // --- HELPER WIDGETS ---
-
-  Widget _buildSectionLabel(ThemeData theme, String text, {bool isNormalCase = false}) {
+  Widget _buildSectionLabel(
+    ThemeData theme,
+    String text, {
+    bool isNormalCase = false,
+  }) {
     return Text(
       text,
       style: theme.textTheme.labelSmall?.copyWith(
@@ -453,18 +635,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ClipRRect(
           borderRadius: BorderRadius.circular(8),
           child: Image.network(
-            imageUrl, 
-            width: 48, 
-            height: 48, 
+            imageUrl,
+            width: 48,
+            height: 48,
             fit: BoxFit.cover,
-            // --- Tambahkan kode ini untuk mencegah overflow jika gambar mati ---
             errorBuilder: (context, error, stackTrace) => Container(
               width: 48,
               height: 48,
               color: Colors.grey[300],
-              child: const Icon(Icons.image_not_supported, size: 20, color: Colors.grey),
+              child: const Icon(
+                Icons.image_not_supported,
+                size: 20,
+                color: Colors.grey,
+              ),
             ),
-            // ------------------------------------------------------------------
           ),
         ),
         const SizedBox(width: 12),
@@ -472,13 +656,24 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(name, style: theme.textTheme.labelSmall?.copyWith(fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text(
+                name,
+                style: theme.textTheme.labelSmall?.copyWith(fontSize: 13),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
               const SizedBox(height: 4),
-              Text(formatRp(price), style: TextStyle(color: theme.colorScheme.primary, fontSize: 12, fontWeight: FontWeight.bold)),
+              Text(
+                formatRp(price),
+                style: TextStyle(
+                  color: theme.colorScheme.primary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ),
         ),
-        // Stepper
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           decoration: BoxDecoration(
@@ -489,15 +684,28 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             children: [
               InkWell(
                 onTap: onMinus,
-                child: const Padding(padding: EdgeInsets.all(6), child: Icon(Icons.remove, size: 14, color: Color(0xFF3D4943))),
+                child: const Padding(
+                  padding: EdgeInsets.all(6),
+                  child: Icon(Icons.remove, size: 14, color: Color(0xFF3D4943)),
+                ),
               ),
               SizedBox(
                 width: 20,
-                child: Text('$qty', textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                child: Text(
+                  '$qty',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
               InkWell(
                 onTap: onPlus,
-                child: const Padding(padding: EdgeInsets.all(6), child: Icon(Icons.add, size: 14, color: Color(0xFF3D4943))),
+                child: const Padding(
+                  padding: EdgeInsets.all(6),
+                  child: Icon(Icons.add, size: 14, color: Color(0xFF3D4943)),
+                ),
               ),
             ],
           ),
@@ -522,7 +730,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? theme.colorScheme.primary : const Color(0xFFE5E7EB),
+            color: isSelected
+                ? theme.colorScheme.primary
+                : const Color(0xFFE5E7EB),
             width: isSelected ? 1.5 : 1,
           ),
         ),
@@ -534,17 +744,27 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: isSelected ? theme.colorScheme.primary.withOpacity(0.1) : const Color(0xFFF2F4F8),
+                    color: isSelected
+                        ? theme.colorScheme.primary.withOpacity(0.1)
+                        : const Color(0xFFF2F4F8),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(icon, color: isSelected ? theme.colorScheme.primary : const Color(0xFF6D7A73), size: 24),
+                  child: Icon(
+                    icon,
+                    color: isSelected
+                        ? theme.colorScheme.primary
+                        : const Color(0xFF6D7A73),
+                    size: 24,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   title,
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: const Color(0xFF3D4943),
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
                   ),
                 ),
               ],
@@ -553,7 +773,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               Positioned(
                 top: -8,
                 right: 8,
-                child: Icon(Icons.check_circle, color: theme.colorScheme.primary, size: 16),
+                child: Icon(
+                  Icons.check_circle,
+                  color: theme.colorScheme.primary,
+                  size: 16,
+                ),
               ),
           ],
         ),
@@ -561,7 +785,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  Widget _buildSummaryRow(String label, String value, {IconData? icon, Color? textColor}) {
+  Widget _buildSummaryRow(
+    String label,
+    String value, {
+    IconData? icon,
+    Color? textColor,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -571,10 +800,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               Icon(icon, size: 14, color: textColor),
               const SizedBox(width: 4),
             ],
-            Text(label, style: TextStyle(color: textColor ?? const Color(0xFF6D7A73), fontSize: 13)),
+            Text(
+              label,
+              style: TextStyle(
+                color: textColor ?? const Color(0xFF6D7A73),
+                fontSize: 13,
+              ),
+            ),
           ],
         ),
-        Text(value, style: TextStyle(color: textColor ?? const Color(0xFF191C1F), fontSize: 13, fontWeight: FontWeight.w600)),
+        Text(
+          value,
+          style: TextStyle(
+            color: textColor ?? const Color(0xFF191C1F),
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ],
     );
   }
