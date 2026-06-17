@@ -479,103 +479,110 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 padding: const EdgeInsets.all(20.0),
                 child: ElevatedButton(
                   onPressed: () async {
-                    if (selectedPayment == 'QRIS') {
-                      try {
-                        // 1. Tampilkan loading
-                        showDialog(
-                          context: context,
-                          barrierDismissible: false,
-                          builder: (context) =>
-                              const Center(child: CircularProgressIndicator()),
-                        );
+                    try {
+                      // 1. Tampilkan loading untuk SEMUA metode pembayaran
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (context) =>
+                            const Center(child: CircularProgressIndicator()),
+                      );
 
-                        // 2. Siapkan Data untuk API
-                        final cartItems = Provider.of<CartProvider>(
-                          context,
-                          listen: false,
-                        ).items.values.toList();
-                        final List<Map<String, dynamic>> itemsList = cartItems
-                            .map((item) {
-                              return {
-                                'menu_id': item.menuId,
-                                'jumlah': item.quantity,
-                                'harga_satuan': item.price,
-                              };
-                            })
-                            .toList();
+                      // 2. Siapkan Data untuk API
+                      final cartItems = Provider.of<CartProvider>(
+                        context,
+                        listen: false,
+                      ).items.values.toList();
 
-                        final payload = {
-                          'tipe_pesanan': selectedMethod == 'Dine-In'
-                              ? 'dine_in'
-                              : 'takeaway',
-                          'meja_id': null, // Sesuaikan jika ada ID meja dinamis
-                          'alamat_pengiriman_id': null,
-                          'items': itemsList,
-                          'voucher_id':
-                              null, // Sesuaikan jika ada logika voucher
-                          'diskon_voucher': discount,
-                          'metode_pembayaran': 'qris',
+                      final List<Map<String, dynamic>>
+                      itemsList = cartItems.map((item) {
+                        return {
+                          'menu_id': item.menuId,
+                          'jumlah': item.quantity,
+                          'harga_satuan': item.price,
+                          // Pastikan format list opsi_tambahan dikirim dengan benar jika ada
+                          'opsi_tambahan': null,
                         };
+                      }).toList();
 
-                        // 3. Tembak API
-                        final TransactionService service = TransactionService();
-                        final response = await service.checkout(payload);
+                      // Format nama metode pembayaran agar sesuai dengan validasi Laravel (huruf kecil)
+                      String metodePembayaranApi = selectedPayment == 'Cash'
+                          ? 'cash'
+                          : 'qris';
 
-                        // Tutup loading
-                        if (mounted) Navigator.pop(context);
+                      final payload = {
+                        'tipe_pesanan': selectedMethod == 'Dine-In'
+                            ? 'dine_in'
+                            : 'takeaway',
+                        'meja_id': null,
+                        'alamat_pengiriman_id': null,
+                        'items': itemsList,
+                        'voucher_id': null,
+                        'diskon_voucher': discount,
+                        'metode_pembayaran':
+                            metodePembayaranApi, // 'cash' atau 'qris'
+                      };
 
-                        if (response['success'] == true) {
-                          final snapToken = response['data']['snap_token'];
+                      // 3. Tembak API KE LARAVEL
+                      final TransactionService service = TransactionService();
+                      final response = await service.checkout(payload);
 
-                          // 4. Bersihkan Keranjang
-                          if (mounted) {
-                            Provider.of<CartProvider>(
-                              context,
-                              listen: false,
-                            ).clear();
-                          }
+                      // Tutup loading
+                      if (mounted) Navigator.pop(context);
 
-                          // 5. Pindah ke Halaman Pembayaran Midtrans
-                          if (response['success'] == true) {
-                            final orderId = response['data']['order_id'];
-                            final qrUrl = response['data']['qr_url'] ?? '';
-
-                            // 4. Bersihkan Keranjang
-                            if (mounted) {
-                              Provider.of<CartProvider>(
-                                context,
-                                listen: false,
-                              ).clear();
-                            }
-
-                            // 5. Pindah ke Halaman Pembayaran Custom
-                            if (mounted) {
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => QrisPaymentScreen(
-                                    totalAmount: grandTotal,
-                                    orderId: orderId,
-                                    qrUrl: qrUrl,
-                                  ),
-                                ),
-                              );
-                            }
-                          }
-                        }
-                      } catch (e) {
+                      // 4. Cek Balasan dari Laravel
+                      if (response['success'] == true) {
+                        // Bersihkan Keranjang karena pesanan sudah sukses masuk database
                         if (mounted) {
-                          Navigator.pop(context); // Tutup loading
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error: ${e.toString()}'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
+                          Provider.of<CartProvider>(
+                            context,
+                            listen: false,
+                          ).clear();
                         }
+
+                        // 5. Pisahkan Alur Layar Berdasarkan Metode Pembayaran
+                        if (selectedPayment == 'QRIS') {
+                          // Jika QRIS, pindah ke halaman bayar
+                          final orderId = response['data']['order_id'];
+                          final qrUrl = response['data']['qr_url'] ?? '';
+
+                          if (mounted) {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => QrisPaymentScreen(
+                                  totalAmount: grandTotal,
+                                  orderId: orderId,
+                                  qrUrl: qrUrl,
+                                ),
+                              ),
+                            );
+                          }
+                        } else {
+                          // Jika CASH, munculkan dialog "Pembayaran di Kasir"
+                          if (mounted) {
+                            _showCashPaymentDialog(context, theme);
+                          }
+                        }
+                      } else {
+                        // Jika Laravel menolak (sukses == false)
+                        throw Exception(
+                          response['message'] ?? 'Terjadi kesalahan',
+                        );
                       }
-                    } else {
-                      _showCashPaymentDialog(context, theme);
+                    } catch (e) {
+                      // Jika terjadi error jaringan / validasi Laravel
+                      if (mounted) {
+                        // Jika loading masih muter, tutup
+                        if (Navigator.canPop(context)) Navigator.pop(context);
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Gagal: ${e.toString()}'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
                     }
                   },
                   style: ElevatedButton.styleFrom(

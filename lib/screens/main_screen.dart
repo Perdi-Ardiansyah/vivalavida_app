@@ -19,7 +19,7 @@ class _MainScreenState extends State<MainScreen> {
     const HomeScreen(),
     const MenuScreen(),   // Placeholder untuk Menu
     const RewardsScreen(), // Placeholder untuk Rewards
-    const ProfileScreen(), // Placeholder untuk Profile
+    ProfileScreen(), // Placeholder untuk Profile
   ];
 
   @override
