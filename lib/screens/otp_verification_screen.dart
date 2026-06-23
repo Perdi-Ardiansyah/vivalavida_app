@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'reset_password_screen.dart'; // Diperlukan untuk fitur Timer
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import '../services/api_config.dart'; // Pastikan path import ini sesuai
+import 'reset_password_screen.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
-  final String email; // Menerima email dari halaman sebelumnya
+  final String email; 
   
   const OtpVerificationScreen({super.key, required this.email});
 
@@ -12,11 +15,10 @@ class OtpVerificationScreen extends StatefulWidget {
 }
 
 class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
-  // --- State Variables ---
-  int _secondsRemaining = 60; // Mulai dari 60 detik
+  int _secondsRemaining = 60; 
   Timer? _timer;
+  bool _isLoading = false;
   
-  // List untuk mengontrol 6 kotak input OTP
   final List<FocusNode> _focusNodes = List.generate(6, (index) => FocusNode());
   final List<TextEditingController> _controllers = List.generate(6, (index) => TextEditingController());
 
@@ -26,7 +28,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     startTimer();
   }
 
-  // Fungsi untuk menjalankan hitung mundur
   void startTimer() {
     setState(() => _secondsRemaining = 60);
     _timer?.cancel();
@@ -41,7 +42,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   @override
   void dispose() {
-    _timer?.cancel(); // Pastikan timer mati saat keluar halaman
+    _timer?.cancel(); 
     for (var controller in _controllers) {
       controller.dispose();
     }
@@ -51,11 +52,90 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     super.dispose();
   }
 
-  // Helper untuk mengubah detik menjadi format MM:SS
   String get formattedTime {
     int minutes = _secondsRemaining ~/ 60;
     int seconds = _secondsRemaining % 60;
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  // --- FUNGSI VERIFIKASI OTP ---
+  Future<void> _verifyOtp() async {
+    String otpCode = _controllers.map((c) => c.text).join();
+    
+    if (otpCode.length != 6) {
+      _showSnackBar('Harap masukkan 6 digit kode OTP secara lengkap.', isError: true);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final url = Uri.parse('${ApiConfig.baseUrl}/forgot-password/verify-otp');
+      final response = await http.post(
+        url,
+        headers: {'Accept': 'application/json'},
+        body: {
+          'email': widget.email,
+          'otp': otpCode,
+        },
+      );
+
+      setState(() => _isLoading = false);
+
+      if (response.statusCode == 200) {
+        _showSnackBar('Kode OTP berhasil diverifikasi!', isError: false);
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ResetPasswordScreen(email: widget.email), // Kirim email ke layar reset
+            ),
+          );
+        }
+      } else {
+        final data = json.decode(response.body);
+        _showSnackBar(data['message'] ?? 'Kode OTP salah atau kadaluarsa.', isError: true);
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnackBar('Gagal terhubung ke server.', isError: true);
+    }
+  }
+
+  // --- FUNGSI KIRIM ULANG OTP ---
+  Future<void> _resendOtp() async {
+    setState(() => _isLoading = true);
+    try {
+      final url = Uri.parse('${ApiConfig.baseUrl}/forgot-password/send-otp');
+      final response = await http.post(
+        url,
+        headers: {'Accept': 'application/json'},
+        body: {'email': widget.email},
+      );
+
+      setState(() => _isLoading = false);
+
+      if (response.statusCode == 200) {
+        _showSnackBar('Kode OTP baru telah dikirim ke email Anda.', isError: false);
+        startTimer(); // Mulai ulang timer jika sukses
+      } else {
+        _showSnackBar('Gagal mengirim ulang OTP.', isError: true);
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnackBar('Gagal terhubung ke server.', isError: true);
+    }
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -64,10 +144,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      // Menggunakan Stack agar bisa menaruh elemen dekoratif di latar belakang
       body: Stack(
         children: [
-          // --- 1. ELEMEN DEKORATIF SUDUT KANAN BAWAH ---
           Positioned(
             bottom: -80,
             right: -80,
@@ -75,7 +153,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               width: 250,
               height: 250,
               decoration: BoxDecoration(
-                color: const Color(0xFFE6F0EB).withOpacity(0.5), // Hijau sangat pudar
+                color: const Color(0xFFE6F0EB).withOpacity(0.5),
                 shape: BoxShape.circle,
               ),
             ),
@@ -87,17 +165,14 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               width: 150,
               height: 150,
               decoration: const BoxDecoration(
-                color: Color(0xFFE6F0EB), // Hijau pudar
+                color: Color(0xFFE6F0EB),
                 shape: BoxShape.circle,
               ),
             ),
           ),
-
-          // --- 2. KONTEN UTAMA ---
           SafeArea(
             child: Column(
               children: [
-                // AppBar transparan buatan manual (karena di dalam Stack)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
                   child: Row(
@@ -116,7 +191,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 48), // Penyeimbang IconButton agar teks pas di tengah
+                      const SizedBox(width: 48), 
                     ],
                   ),
                 ),
@@ -127,11 +202,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // --- 3. IKON SURAT BERPENDAR ---
                         Container(
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE6F0EB), // Latar ikon
+                            color: const Color(0xFFE6F0EB), 
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
@@ -149,7 +223,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                         ),
                         const SizedBox(height: 40),
 
-                        // --- 4. JUDUL & DESKRIPSI ---
                         Text(
                           'Masukkan Kode OTP',
                           style: theme.textTheme.headlineMedium?.copyWith(fontSize: 22),
@@ -173,32 +246,14 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                         ),
                         const SizedBox(height: 32),
 
-                        // --- 5. KOTAK INPUT OTP (6 Digit) ---
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: List.generate(6, (index) => _buildOtpBox(index, theme)),
                         ),
                         const SizedBox(height: 32),
 
-                        // --- 6. TOMBOL VERIFIKASI ---
                         ElevatedButton(
-                          onPressed: () {
-                            String otpCode = _controllers.map((c) => c.text).join();
-                            
-                            if (otpCode.length == 6) {
-                              // --- TAMBAHKAN NAVIGASI KE SINI ---
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const ResetPasswordScreen(),
-                                ),
-                              );
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Harap masukkan 6 digit kode OTP.')),
-                              );
-                            }
-                          },
+                          onPressed: _isLoading ? null : _verifyOtp,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: theme.colorScheme.primary,
                             minimumSize: const Size(double.infinity, 52),
@@ -206,30 +261,26 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: const Text(
-                            'Verifikasi',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                          ),
+                          child: _isLoading
+                            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Text(
+                                'Verifikasi',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                              ),
                         ),
                         const SizedBox(height: 24),
 
-                        // --- 7. TEKS KIRIM ULANG & TIMER ---
                         Text(
                           'Tidak menerima kode?',
                           style: theme.textTheme.bodyMedium?.copyWith(color: const Color(0xFF6D7A73), fontSize: 13),
                         ),
                         const SizedBox(height: 4),
                         GestureDetector(
-                          onTap: _secondsRemaining == 0 
-                              ? () {
-                                  // Logika memanggil ulang API kirim OTP di sini
-                                  startTimer(); // Mulai ulang timer
-                                } 
-                              : null, // Nonaktifkan klik jika timer masih berjalan
+                          onTap: (_secondsRemaining == 0 && !_isLoading) ? _resendOtp : null,
                           child: Text(
                             _secondsRemaining > 0 ? 'Kirim ulang dalam $formattedTime' : 'Kirim ulang kode sekarang',
                             style: TextStyle(
-                              color: theme.colorScheme.primary,
+                              color: (_secondsRemaining == 0 && !_isLoading) ? theme.colorScheme.primary : Colors.grey,
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
                             ),
@@ -247,8 +298,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     );
   }
 
-  // --- HELPER WIDGETS ---
-  // Fungsi untuk membuat 1 kotak input OTP
   Widget _buildOtpBox(int index, ThemeData theme) {
     return SizedBox(
       width: 48,
@@ -258,10 +307,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         focusNode: _focusNodes[index],
         keyboardType: TextInputType.number,
         textAlign: TextAlign.center,
-        maxLength: 1, // Dibatasi 1 karakter per kotak
+        maxLength: 1, 
+        enabled: !_isLoading,
         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         decoration: InputDecoration(
-          counterText: '', // Menghilangkan teks hitungan "0/1" di bawah
+          counterText: '', 
           filled: true,
           fillColor: Colors.white,
           enabledBorder: OutlineInputBorder(
@@ -274,12 +324,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
           ),
         ),
         onChanged: (value) {
-          // Logika pemindahan kursor otomatis
           if (value.isNotEmpty && index < 5) {
-            // Pindah ke kotak selanjutnya jika diisi
             _focusNodes[index + 1].requestFocus();
           } else if (value.isEmpty && index > 0) {
-            // Pindah ke kotak sebelumnya jika dihapus
             _focusNodes[index - 1].requestFocus();
           }
         },

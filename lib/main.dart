@@ -3,6 +3,7 @@ import 'utils/app_theme.dart';
 import 'package:provider/provider.dart'; // Wajib import ini
 import 'providers/cart_provider.dart';  // Import file provider yang baru dibuat
 import 'screens/login_screen.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
  // 1. Jangan lupa import file main_screen.dart
 
 void main() {
@@ -14,6 +15,35 @@ void main() {
     ),
   );
 }
+
+void susunKonfigurasiNotifikasi(BuildContext context) {
+  // Ketika notifikasi masuk saat aplikasi sedang aktif dibuka (Foreground)
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    if (message.notification != null) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.coffee, color: Color(0xFF046A41)),
+              const SizedBox(width: 8),
+              Text(message.notification!.title ?? 'Info Vivalavida'),
+            ],
+          ),
+          content: Text(message.notification!.body ?? ''),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK', style: TextStyle(color: Color(0xFF046A41), fontWeight: FontWeight.bold)),
+            )
+          ],
+        ),
+      );
+    }
+  });
+}
+
 
 class CoffeeShopApp extends StatelessWidget {
   const CoffeeShopApp({super.key});

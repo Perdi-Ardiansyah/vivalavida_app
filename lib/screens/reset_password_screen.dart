@@ -1,20 +1,105 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import '../services/api_config.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
-  const ResetPasswordScreen({super.key});
+  final String email;
+
+  const ResetPasswordScreen({super.key, required this.email});
 
   @override
   State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
 }
 
 class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
-  // State untuk visibilitas kata sandi
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
+  
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
 
-  // State untuk indikator (bisa dibuat dinamis nanti saat dihubungkan dengan controller)
-  final bool _hasMinLength = true; // Skenario sudah memenuhi 8 karakter
-  final bool _hasSymbolOrNumber = false; // Skenario belum ada simbol/angka
+  bool _hasMinLength = false; 
+  bool _hasSymbolOrNumber = false; 
+
+  @override
+  void initState() {
+    super.initState();
+    // Memantau setiap ketikan untuk meng-update indikator Chip secara real-time!
+    _passwordController.addListener(() {
+      final text = _passwordController.text;
+      setState(() {
+        _hasMinLength = text.length >= 8;
+        _hasSymbolOrNumber = RegExp(r'[0-9!@#\$&*~.]').hasMatch(text);
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  // --- FUNGSI MENGUBAH PASSWORD DI LARAVEL ---
+  Future<void> _resetPassword() async {
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
+    if (!_hasMinLength || !_hasSymbolOrNumber) {
+      _showSnackBar('Harap penuhi syarat keamanan kata sandi.', isError: true);
+      return;
+    }
+
+    if (password != confirmPassword) {
+      _showSnackBar('Konfirmasi kata sandi tidak cocok.', isError: true);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final url = Uri.parse('${ApiConfig.baseUrl}/forgot-password/reset-password');
+      final response = await http.post(
+        url,
+        headers: {'Accept': 'application/json'},
+        body: {
+          'email': widget.email,
+          'password': password,
+          'password_confirmation': confirmPassword, 
+        },
+      );
+
+      setState(() => _isLoading = false);
+
+      if (response.statusCode == 200) {
+        _showSnackBar('Kata sandi berhasil diubah! Silakan login.', isError: false);
+        if (mounted) {
+          // Kembali ke halaman Login paling depan
+          Navigator.popUntil(context, (route) => route.isFirst);
+        }
+      } else {
+        final data = json.decode(response.body);
+        _showSnackBar(data['message'] ?? 'Gagal memperbarui kata sandi.', isError: true);
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnackBar('Gagal terhubung ke server.', isError: true);
+    }
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +116,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // --- 1. LOGO TEKS DI TENGAH ---
                     Center(
                       child: Column(
                         children: [
@@ -55,7 +139,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     ),
                     const SizedBox(height: 48),
 
-                    // --- 2. JUDUL & DESKRIPSI ---
                     Text(
                       'Ganti Kata Sandi',
                       style: theme.textTheme.headlineMedium?.copyWith(
@@ -73,9 +156,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     ),
                     const SizedBox(height: 32),
 
-                    // --- 3. INPUT KATA SANDI BARU ---
                     _buildLabel(theme, 'Kata Sandi Baru'),
                     _buildPasswordField(
+                      controller: _passwordController,
                       theme: theme,
                       hint: 'Masukkan kata sandi baru',
                       obscure: _obscureNewPassword,
@@ -83,9 +166,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    // --- 4. INPUT KONFIRMASI KATA SANDI ---
                     _buildLabel(theme, 'Konfirmasi Kata Sandi Baru'),
                     _buildPasswordField(
+                      controller: _confirmPasswordController,
                       theme: theme,
                       hint: 'Ulangi kata sandi baru',
                       obscure: _obscureConfirmPassword,
@@ -93,62 +176,39 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // --- 5. INDIKATOR SYARAT KATA SANDI ---
                     Row(
                       children: [
-                        _buildRequirementChip(
-                          theme: theme,
-                          text: 'MIN. 8 KARAKTER',
-                          isMet: _hasMinLength,
-                        ),
+                        _buildRequirementChip(theme: theme, text: 'MIN. 8 KARAKTER', isMet: _hasMinLength),
                         const SizedBox(width: 8),
-                        _buildRequirementChip(
-                          theme: theme,
-                          text: 'SIMBOL & ANGKA',
-                          isMet: _hasSymbolOrNumber,
-                        ),
+                        _buildRequirementChip(theme: theme, text: 'SIMBOL & ANGKA', isMet: _hasSymbolOrNumber),
                       ],
                     ),
                     const SizedBox(height: 40),
 
-                    // --- 6. TOMBOL SIMPAN ---
                     ElevatedButton(
-                      onPressed: () {
-                        // Aksi simpan kata sandi baru
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('Kata sandi berhasil diubah!'),
-                            backgroundColor: theme.colorScheme.primary,
-                          ),
-                        );
-                        // Kembali ke halaman Login dengan menghapus tumpukan history
-                        Navigator.popUntil(context, (route) => route.isFirst);
-                      },
+                      onPressed: _isLoading ? null : _resetPassword,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: theme.colorScheme.primary,
                         minimumSize: const Size(double.infinity, 52),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         elevation: 4,
                         shadowColor: theme.colorScheme.primary.withOpacity(0.4),
                       ),
-                      child: const Text(
-                        'Simpan Kata Sandi',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
+                      child: _isLoading
+                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Text(
+                            'Simpan Kata Sandi',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
                     ),
                     const SizedBox(height: 32),
 
-                    // --- 7. TOMBOL KEMBALI ---
                     Center(
                       child: TextButton.icon(
-                        onPressed: () {
-                          Navigator.pop(context);
-                        },
+                        onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
                         icon: const Icon(Icons.arrow_back, color: Color(0xFF6D7A73), size: 18),
                         label: const Text(
-                          'Kembali ke Keamanan', // Teks ini bisa disesuaikan apakah kembali ke Keamanan atau Login
+                          'Kembali ke Login',
                           style: TextStyle(color: Color(0xFF6D7A73), fontSize: 14),
                         ),
                       ),
@@ -158,7 +218,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               ),
             ),
             
-            // --- 8. FOOTER COPYRIGHT ---
             Padding(
               padding: const EdgeInsets.only(bottom: 24.0),
               child: Text(
@@ -176,8 +235,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     );
   }
 
-  // --- HELPER WIDGETS ---
-
   Widget _buildLabel(ThemeData theme, String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
@@ -189,23 +246,22 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   }
 
   Widget _buildPasswordField({
+    required TextEditingController controller,
     required ThemeData theme,
     required String hint,
     required bool obscure,
     required VoidCallback onToggle,
   }) {
     return TextField(
+      controller: controller,
       obscureText: obscure,
+      enabled: !_isLoading,
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
         prefixIcon: const Icon(Icons.lock_outline, color: Colors.black54, size: 20),
         suffixIcon: IconButton(
-          icon: Icon(
-            obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-            color: Colors.black54,
-            size: 20,
-          ),
+          icon: Icon(obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Colors.black54, size: 20),
           onPressed: onToggle,
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -221,16 +277,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     );
   }
 
-  // Widget untuk membuat Chip Indikator Syarat Kata Sandi
-  Widget _buildRequirementChip({
-    required ThemeData theme,
-    required String text,
-    required bool isMet,
-  }) {
+  Widget _buildRequirementChip({required ThemeData theme, required String text, required bool isMet}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: isMet ? const Color(0xFFE6F0EB) : const Color(0xFFF2F4F8), // Hijau pudar vs Abu-abu pudar
+        color: isMet ? const Color(0xFFE6F0EB) : const Color(0xFFF2F4F8), 
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(

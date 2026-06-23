@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../providers/cart_provider.dart';
 import 'qris_payment_screen.dart';
 import '../services/transaction_service.dart';
@@ -15,9 +20,253 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   // --- State Variables ---
   String selectedMethod = 'Dine-In';
   String selectedPayment = 'QRIS';
+  String? selectedTableId;
 
-  final int discount = 10000;
-  final double taxRate = 0.11; // Pajak 11%
+  // Variabel Pajak Dinamis
+  double taxRate = 0.11; // Default 11%, akan tertimpa oleh data dari API
+  int taxPercentage = 11; // Untuk tampilan teks (contoh: "11")
+
+  // --- Variabel Baru untuk Voucher Dinamis ---
+  List<dynamic> _myVouchers = []; // Menampung isi dompet voucher
+  bool _isLoadingVouchers = true;
+
+  // Data voucher yang sedang aktif digunakan saat checkout
+  int? selectedVoucherId;
+  String? selectedVoucherTitle;
+  String? selectedVoucherType; // 'nominal' atau 'persen'
+  int selectedVoucherValue = 0; // Nilai potongannya
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchMyWalletVouchers(); // Ambil voucher pas layar dibuka
+    _fetchTaxRate(); // Ambil persentase pajak dari Laravel
+  }
+
+  // --- AMBIL DATA PAJAK DARI DATABASE ---
+  // --- AMBIL DATA PAJAK DARI DATABASE ---
+  Future<void> _fetchTaxRate() async {
+    try {
+      // 1. Ambil token dari penyimpanan HP
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? token = prefs.getString('auth_token');
+
+      // 2. Sertakan token di dalam Headers
+      final response = await http.get(
+        Uri.parse('http://10.0.2.2:8000/api/tax-rate'),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token', // <- Ini yang sebelumnya tertinggal
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (mounted) {
+          setState(() {
+            taxRate = double.parse(data['tax_rate'].toString());
+            taxPercentage = (taxRate * 100).round();
+          });
+        }
+      } else {
+        debugPrint("Gagal API Pajak, Status: ${response.statusCode}");
+      }
+    } catch (e) {
+      debugPrint("Gagal ambil pajak dari API: $e");
+    }
+  }
+
+  // --- AMBIL VOUCHER YANG BELUM DIPAKAI DARI DATABASE ---
+  Future<void> _fetchMyWalletVouchers() async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? token = prefs.getString('auth_token');
+      final url = Uri.parse('http://10.0.2.2:8000/api/vouchers/me');
+
+      final response = await http.get(
+        url,
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final resData = json.decode(response.body);
+        if (mounted) {
+          setState(() {
+            _myVouchers = resData['data'] ?? [];
+            _isLoadingVouchers = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Error ambil voucher di checkout: $e");
+      if (mounted) setState(() => _isLoadingVouchers = false);
+    }
+  }
+
+  // --- MODAL POP-UP UNTUK MEMILIH VOUCHER ---
+  void _showVoucherSelectionBottomSheet(
+    BuildContext context,
+    int subtotal,
+    ThemeData theme,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Pilih Voucher Tersedia',
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontSize: 18,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  if (_isLoadingVouchers)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(20.0),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  else if (_myVouchers.isEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      child: const Center(
+                        child: Text(
+                          'Kamu tidak memiliki voucher unused saat ini.',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: _myVouchers.length,
+                        itemBuilder: (context, index) {
+                          final v = _myVouchers[index];
+                          final bool isSelected = selectedVoucherId == v['id'];
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? theme.colorScheme.primary.withOpacity(0.05)
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected
+                                    ? theme.colorScheme.primary
+                                    : const Color(0xFFE5E7EB),
+                              ),
+                            ),
+                            child: ListTile(
+                              leading: Icon(
+                                Icons.local_activity,
+                                color: theme.colorScheme.primary,
+                              ),
+                              title: Text(
+                                v['judul'] ?? 'Voucher Diskon',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              subtitle: Text(
+                                v['deskripsi'] ?? '',
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              trailing: isSelected
+                                  ? Icon(
+                                      Icons.check_circle,
+                                      color: theme.colorScheme.primary,
+                                    )
+                                  : const Icon(
+                                      Icons.circle_outlined,
+                                      color: Colors.grey,
+                                    ),
+                              onTap: () {
+                                setState(() {
+                                  selectedVoucherId = v['id'];
+                                  selectedVoucherTitle = v['judul'];
+                                  selectedVoucherType = v['tipe_diskon'];
+                                  selectedVoucherValue =
+                                      int.tryParse(
+                                        v['nilai_diskon'].toString(),
+                                      ) ??
+                                      0;
+                                });
+                                Navigator.pop(context);
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                  // Tombol batalkan penggunaan voucher
+                  if (selectedVoucherId != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: OutlinedButton(
+                        onPressed: () {
+                          setState(() {
+                            selectedVoucherId = null;
+                            selectedVoucherTitle = null;
+                            selectedVoucherType = null;
+                            selectedVoucherValue = 0;
+                          });
+                          Navigator.pop(context);
+                        },
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(double.infinity, 44),
+                          side: const BorderSide(color: Colors.red),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          'Batalkan Penggunaan Voucher',
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   // Fungsi helper untuk memformat Rupiah
   String formatRp(int number) {
@@ -84,9 +333,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 const SizedBox(height: 28),
                 ElevatedButton(
                   onPressed: () {
-                    // Bersihkan keranjang setelah sukses
                     Provider.of<CartProvider>(context, listen: false).clear();
-                    // Kembali ke halaman utama (Menu)
                     Navigator.popUntil(context, (route) => route.isFirst);
                   },
                   style: ElevatedButton.styleFrom(
@@ -116,17 +363,34 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    // Mengambil data dari CartProvider
     final cart = Provider.of<CartProvider>(context);
     final cartItems = cart.items.values.toList();
 
-    // Kalkulasi Total Dinamis
+    // Kalkulasi Angka Dasar
     final int subtotal = cart.totalAmount;
     final int tax = (subtotal * taxRate).round();
-    // Pastikan grand total tidak minus jika diskon lebih besar dari subtotal
-    int grandTotal = subtotal + tax - discount;
+
+    // --- LOGIKA MENGHITUNG DISKON SECARA DINAMIS ---
+    int calculatedDiscount = 0;
+    if (selectedVoucherType == 'persen') {
+      calculatedDiscount = (subtotal * (selectedVoucherValue / 100)).round();
+    } else if (selectedVoucherType == 'nominal') {
+      calculatedDiscount = selectedVoucherValue;
+    }
+
+    int grandTotal = subtotal + tax - calculatedDiscount;
     if (grandTotal < 0) grandTotal = 0;
+
+    // Logika deteksi makanan
+    bool hasFood = cartItems.any((item) {
+      final name = item.name.toLowerCase();
+      return name.contains('croissant') ||
+          name.contains('cake') ||
+          name.contains('roti') ||
+          name.contains('pastry') ||
+          name.contains('snack') ||
+          name.contains('makanan');
+    });
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -193,33 +457,31 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     ),
                     child: Column(
                       children: [
-                        // Looping daftar pesanan dari Provider
                         ...cartItems.asMap().entries.map((entry) {
                           int index = entry.key;
                           CartItem item = entry.value;
-
                           return Column(
                             children: [
                               _buildOrderItem(
                                 theme: theme,
                                 imageUrl: item.imageUrl,
                                 name: item.name,
+                                catatan: item.catatan, // 1. Tambahkan ini
                                 price: item.price * item.quantity,
                                 qty: item.quantity,
-                                onMinus: () {
-                                  cart.reduceQuantity(item.menuId);
-                                },
-                                onPlus: () {
-                                  cart.addItem(
-                                    item.menuId,
-                                    item.name,
-                                    item.price,
-                                    item.imageUrl,
-                                    1,
-                                  );
-                                },
+                                onMinus: () => cart.reduceQuantity(
+                                  item.id,
+                                ), // 2. Ubah item.menuId jadi item.id
+                                onPlus: () => cart.addItem(
+                                  item.menuId,
+                                  item.name,
+                                  item.price,
+                                  item.imageUrl,
+                                  1,
+                                  catatan: item
+                                      .catatan, // 3. Pastikan plus menambah dengan catatan yang sama
+                                ),
                               ),
-                              // Beri garis pembatas antar item (kecuali item terakhir)
                               if (index < cartItems.length - 1)
                                 const Padding(
                                   padding: EdgeInsets.symmetric(vertical: 12),
@@ -231,14 +493,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             ],
                           );
                         }),
-
                         const SizedBox(height: 16),
-
-                        // Tombol Tambah Pesanan Lagi
                         OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context); // Kembali ke menu
-                          },
+                          onPressed: () => Navigator.pop(context),
                           icon: Icon(
                             Icons.add_circle_outline,
                             color: theme.colorScheme.primary,
@@ -274,8 +531,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           title: 'Dine-In',
                           icon: Icons.restaurant,
                           isSelected: selectedMethod == 'Dine-In',
-                          onTap: () =>
-                              setState(() => selectedMethod = 'Dine-In'),
+                          onTap: () => setState(() {
+                            selectedMethod = 'Dine-In';
+                            selectedTableId = null;
+                          }),
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -285,49 +544,102 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           title: 'Takeaway',
                           icon: Icons.shopping_bag_outlined,
                           isSelected: selectedMethod == 'Takeaway',
-                          onTap: () =>
-                              setState(() => selectedMethod = 'Takeaway'),
+                          onTap: () => setState(() {
+                            selectedMethod = 'Takeaway';
+                            selectedTableId = null;
+                          }),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
 
-                  // Nomor Meja
-                  if (selectedMethod == 'Dine-In') ...[
+                  // --- SYARAT MEJA DINE-IN ---
+                  if (selectedMethod == 'Dine-In' && hasFood) ...[
                     _buildSectionLabel(theme, 'Nomor Meja', isNormalCase: true),
                     const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(
-                            Icons.table_restaurant_outlined,
-                            color: Color(0xFF6D7A73),
-                            size: 20,
+                    GestureDetector(
+                      onTap: () async {
+                        final scannedData = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const QRScannerScreen(),
                           ),
-                          SizedBox(width: 12),
-                          Text(
-                            'Pilih Meja',
-                            style: TextStyle(
-                              color: Color(0xFF3D4943),
-                              fontSize: 14,
+                        );
+                        if (scannedData != null &&
+                            scannedData.toString().startsWith('VLV-MEJA-')) {
+                          setState(() {
+                            selectedTableId = scannedData.toString().replaceAll(
+                              'VLV-MEJA-',
+                              '',
+                            );
+                          });
+                        } else if (scannedData != null) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'QR Code salah! Gunakan QR meja resmi Vivalavida.',
+                              ),
+                              backgroundColor: Colors.red,
                             ),
+                          );
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          color: selectedTableId != null
+                              ? theme.colorScheme.primary.withOpacity(0.1)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: selectedTableId != null
+                                ? theme.colorScheme.primary
+                                : const Color(0xFFE5E7EB),
                           ),
-                          Spacer(),
-                          Icon(
-                            Icons.keyboard_arrow_down,
-                            color: Color(0xFF6D7A73),
-                          ),
-                        ],
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.qr_code_scanner,
+                              color: selectedTableId != null
+                                  ? theme.colorScheme.primary
+                                  : const Color(0xFF6D7A73),
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              selectedTableId != null
+                                  ? 'Meja Terpilih (ID: $selectedTableId)'
+                                  : 'Scan QR Meja',
+                              style: TextStyle(
+                                color: selectedTableId != null
+                                    ? theme.colorScheme.primary
+                                    : const Color(0xFF3D4943),
+                                fontSize: 14,
+                                fontWeight: selectedTableId != null
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (selectedTableId != null)
+                              Icon(
+                                Icons.check_circle,
+                                color: theme.colorScheme.primary,
+                                size: 20,
+                              )
+                            else
+                              const Icon(
+                                Icons.chevron_right,
+                                color: Color(0xFF6D7A73),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -370,13 +682,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: theme.colorScheme.primary),
+                      border: Border.all(
+                        color: selectedVoucherId != null
+                            ? theme.colorScheme.primary
+                            : const Color(0xFFE5E7EB),
+                      ),
                     ),
                     child: Row(
                       children: [
                         Icon(
                           Icons.local_activity_outlined,
-                          color: theme.colorScheme.primary,
+                          color: selectedVoucherId != null
+                              ? theme.colorScheme.primary
+                              : Colors.grey,
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -384,36 +702,52 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Voucher COFFEE10 Terpakai',
-                                style: theme.textTheme.labelSmall,
+                                selectedVoucherId != null
+                                    ? selectedVoucherTitle!
+                                    : 'Gunakan Voucher Diskon',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  fontWeight: selectedVoucherId != null
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                ),
                               ),
-                              const SizedBox(height: 2),
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.check_circle,
-                                    color: theme.colorScheme.primary,
-                                    size: 12,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Hemat Rp 10.000',
-                                    style: TextStyle(
+                              if (selectedVoucherId != null) ...[
+                                const SizedBox(height: 2),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle,
                                       color: theme.colorScheme.primary,
-                                      fontSize: 10,
+                                      size: 12,
                                     ),
-                                  ),
-                                ],
-                              ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Hemat ${formatRp(calculatedDiscount)}',
+                                      style: TextStyle(
+                                        color: theme.colorScheme.primary,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ],
                           ),
                         ),
-                        Text(
-                          'Ubah >',
-                          style: TextStyle(
-                            color: theme.colorScheme.primary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
+                        GestureDetector(
+                          onTap: () => _showVoucherSelectionBottomSheet(
+                            context,
+                            subtotal,
+                            theme,
+                          ),
+                          child: Text(
+                            selectedVoucherId != null ? 'Ubah >' : 'Pilih >',
+                            style: TextStyle(
+                              color: theme.colorScheme.primary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],
@@ -433,11 +767,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       children: [
                         _buildSummaryRow('Subtotal', formatRp(subtotal)),
                         const SizedBox(height: 12),
-                        _buildSummaryRow('Pajak (11%)', formatRp(tax)),
+                        // Teks Pajak sekarang tampil dinamis berdasarkan data dari Laravel
+                        _buildSummaryRow(
+                          'Pajak ($taxPercentage%)',
+                          formatRp(tax),
+                        ),
                         const SizedBox(height: 12),
                         _buildSummaryRow(
                           'Diskon Voucher',
-                          '- ${formatRp(discount)}',
+                          '- ${formatRp(calculatedDiscount)}',
                           icon: Icons.local_offer,
                           textColor: theme.colorScheme.error,
                         ),
@@ -471,7 +809,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ),
             ),
 
-      // --- 6. TOMBOL KONFIRMASI ---
+      // --- 6. TOMBOL KONFIRMASI & KIRIM KE LARAVEL ---
       bottomNavigationBar: cartItems.isEmpty
           ? null
           : SafeArea(
@@ -479,8 +817,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 padding: const EdgeInsets.all(20.0),
                 child: ElevatedButton(
                   onPressed: () async {
+                    if (selectedMethod == 'Dine-In' &&
+                        hasFood &&
+                        selectedTableId == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Mohon Scan QR Meja Anda terlebih dahulu.',
+                          ),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+
                     try {
-                      // 1. Tampilkan loading untuk SEMUA metode pembayaran
                       showDialog(
                         context: context,
                         barrierDismissible: false,
@@ -488,24 +839,30 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             const Center(child: CircularProgressIndicator()),
                       );
 
-                      // 2. Siapkan Data untuk API
                       final cartItems = Provider.of<CartProvider>(
                         context,
                         listen: false,
                       ).items.values.toList();
-
                       final List<Map<String, dynamic>>
                       itemsList = cartItems.map((item) {
+                        // 1. Kita bungkus catatannya ke dalam sebuah Array (List di Dart)
+                        List<String> formatOpsiArray = [];
+                        if (item.catatan != null &&
+                            item.catatan!.trim().isNotEmpty) {
+                          formatOpsiArray.add(item.catatan!);
+                        }
+
                         return {
                           'menu_id': item.menuId,
                           'jumlah': item.quantity,
                           'harga_satuan': item.price,
-                          // Pastikan format list opsi_tambahan dikirim dengan benar jika ada
-                          'opsi_tambahan': null,
+                          // 2. Jika tidak ada catatan, kirim null (seperti kode awalmu yang berhasil).
+                          // Jika ada catatan, kirim formatOpsiArray yang sudah berupa Array [ "Less sugar" ]
+                          'opsi_tambahan': formatOpsiArray.isNotEmpty
+                              ? formatOpsiArray
+                              : null,
                         };
                       }).toList();
-
-                      // Format nama metode pembayaran agar sesuai dengan validasi Laravel (huruf kecil)
                       String metodePembayaranApi = selectedPayment == 'Cash'
                           ? 'cash'
                           : 'qris';
@@ -514,38 +871,30 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         'tipe_pesanan': selectedMethod == 'Dine-In'
                             ? 'dine_in'
                             : 'takeaway',
-                        'meja_id': null,
+                        'meja_id': selectedTableId != null
+                            ? int.tryParse(selectedTableId!)
+                            : null,
                         'alamat_pengiriman_id': null,
                         'items': itemsList,
-                        'voucher_id': null,
-                        'diskon_voucher': discount,
-                        'metode_pembayaran':
-                            metodePembayaranApi, // 'cash' atau 'qris'
+                        'voucher_id': selectedVoucherId,
+                        'diskon_voucher': calculatedDiscount,
+                        'metode_pembayaran': metodePembayaranApi,
                       };
 
-                      // 3. Tembak API KE LARAVEL
                       final TransactionService service = TransactionService();
                       final response = await service.checkout(payload);
 
-                      // Tutup loading
                       if (mounted) Navigator.pop(context);
 
-                      // 4. Cek Balasan dari Laravel
                       if (response['success'] == true) {
-                        // Bersihkan Keranjang karena pesanan sudah sukses masuk database
-                        if (mounted) {
+                        if (mounted)
                           Provider.of<CartProvider>(
                             context,
                             listen: false,
                           ).clear();
-                        }
-
-                        // 5. Pisahkan Alur Layar Berdasarkan Metode Pembayaran
                         if (selectedPayment == 'QRIS') {
-                          // Jika QRIS, pindah ke halaman bayar
                           final orderId = response['data']['order_id'];
                           final qrUrl = response['data']['qr_url'] ?? '';
-
                           if (mounted) {
                             Navigator.pushReplacement(
                               context,
@@ -559,23 +908,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             );
                           }
                         } else {
-                          // Jika CASH, munculkan dialog "Pembayaran di Kasir"
-                          if (mounted) {
-                            _showCashPaymentDialog(context, theme);
-                          }
+                          if (mounted) _showCashPaymentDialog(context, theme);
                         }
                       } else {
-                        // Jika Laravel menolak (sukses == false)
                         throw Exception(
                           response['message'] ?? 'Terjadi kesalahan',
                         );
                       }
                     } catch (e) {
-                      // Jika terjadi error jaringan / validasi Laravel
                       if (mounted) {
-                        // Jika loading masih muter, tutup
                         if (Navigator.canPop(context)) Navigator.pop(context);
-
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('Gagal: ${e.toString()}'),
@@ -634,6 +976,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     required String name,
     required int price,
     required int qty,
+    String? catatan, // Tambahkan parameter catatan di sini
     required VoidCallback onMinus,
     required VoidCallback onPlus,
   }) {
@@ -669,6 +1012,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
+              // MEMUNCULKAN TEKS CATATAN JIKA ADA
+              if (catatan != null && catatan.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  'Catatan: $catatan',
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 10,
+                    fontStyle: FontStyle.italic,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
               const SizedBox(height: 4),
               Text(
                 formatRp(price),
@@ -825,6 +1182,86 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ============================================================================
+// WIDGET SCREEN KAMERA SCANNER QR MEJA
+// ============================================================================
+class QRScannerScreen extends StatefulWidget {
+  const QRScannerScreen({super.key});
+
+  @override
+  State<QRScannerScreen> createState() => _QRScannerScreenState();
+}
+
+class _QRScannerScreenState extends State<QRScannerScreen> {
+  bool isScanned = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Scan QR Meja'),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0,
+      ),
+      body: Stack(
+        children: [
+          MobileScanner(
+            onDetect: (capture) {
+              if (isScanned) return;
+              final List<Barcode> barcodes = capture.barcodes;
+              for (final barcode in barcodes) {
+                if (barcode.rawValue != null) {
+                  setState(() => isScanned = true);
+                  Navigator.pop(context, barcode.rawValue);
+                  break;
+                }
+              }
+            },
+          ),
+          Center(
+            child: Container(
+              width: 250,
+              height: 250,
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.5),
+                  width: 2,
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Center(
+                child: Icon(
+                  Icons.qr_code_scanner,
+                  color: Colors.white54,
+                  size: 64,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 40,
+            left: 20,
+            right: 20,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.black87,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'Arahkan kamera ke QR Code yang ada di atas meja Anda.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white, fontSize: 12),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

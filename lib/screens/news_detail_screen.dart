@@ -1,11 +1,31 @@
 import 'package:flutter/material.dart';
 
 class NewsDetailScreen extends StatelessWidget {
-  const NewsDetailScreen({super.key});
+  // Menambahkan parameter untuk menerima data dari HomeScreen
+  final Map<String, dynamic> article;
+
+  const NewsDetailScreen({super.key, required this.article});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    // 1. Ekstrak data dari map article
+    String title = article['judul'] ?? 'Tanpa Judul';
+    String content = article['konten'] ?? 'Tidak ada konten pada artikel ini.';
+    String category = article['kategori'] ?? 'Berita';
+    
+    // Format tanggal sederhana (memotong format YYYY-MM-DDTHH:MM:SSZ dari Laravel)
+    String rawDate = article['created_at'] ?? '';
+    String formattedDate = rawDate.isNotEmpty ? rawDate.split('T')[0] : 'Baru saja';
+
+    // 2. Format URL Gambar
+    String imageUrl = '';
+    if (article['gambar'] != null) {
+      imageUrl = article['gambar'].toString().startsWith('http')
+          ? article['gambar']
+          : 'http://10.0.2.2:8000/storage/${article['gambar']}';
+    }
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -18,7 +38,7 @@ class NewsDetailScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Detail Berita',
+          'Detail Konten',
           style: theme.textTheme.headlineMedium?.copyWith(
             color: theme.colorScheme.primary,
             fontSize: 20,
@@ -29,7 +49,10 @@ class NewsDetailScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.share_outlined, color: Colors.black87),
             onPressed: () {
-              // Logika untuk membagikan berita
+              // TODO: Tambahkan fungsi share nanti menggunakan package share_plus
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Fitur bagikan segera hadir!')),
+              );
             },
           ),
         ],
@@ -41,27 +64,36 @@ class NewsDetailScreen extends StatelessWidget {
             // --- 1. HERO IMAGE & KATEGORI ---
             Stack(
               children: [
-                Image.network(
-                  'https://images.unsplash.com/photo-1554118811-1e0d58224f24?q=80&w=800&auto=format&fit=crop', // Gambar yang sama dengan di beranda
-                  width: double.infinity,
-                  height: 250,
-                  fit: BoxFit.cover,
-                ),
+                imageUrl.isNotEmpty
+                    ? Image.network(
+                        imageUrl,
+                        width: double.infinity,
+                        height: 250,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => _buildPlaceholderImage(),
+                      )
+                    : _buildPlaceholderImage(),
+                
+                // Lencana Kategori
                 Positioned(
                   bottom: 16,
                   left: 20,
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.primary,
+                      // Beda warna tergantung kategori
+                      color: category == 'Promo' 
+                          ? Colors.orange 
+                          : (category == 'Event' ? Colors.red : theme.colorScheme.primary),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Text(
-                      'Promo & Event',
-                      style: TextStyle(
+                    child: Text(
+                      category.toUpperCase(),
+                      style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 12,
+                        fontSize: 10,
                         fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
                       ),
                     ),
                   ),
@@ -75,13 +107,23 @@ class NewsDetailScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Tanggal
+                  // Tanggal & Penulis
                   Row(
                     children: [
                       const Icon(Icons.calendar_today_outlined, size: 14, color: Color(0xFF6D7A73)),
                       const SizedBox(width: 8),
                       Text(
-                        '24 Okt 2024',
+                        formattedDate,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontSize: 12,
+                          color: const Color(0xFF6D7A73),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Icon(Icons.person_outline, size: 14, color: Color(0xFF6D7A73)),
+                      const SizedBox(width: 4),
+                      Text(
+                        article['penulis'] ?? 'Admin',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           fontSize: 12,
                           color: const Color(0xFF6D7A73),
@@ -93,36 +135,40 @@ class NewsDetailScreen extends StatelessWidget {
 
                   // Judul Berita
                   Text(
-                    'Cabang Baru di Kemang!',
-                    style: theme.textTheme.headlineLarge?.copyWith(fontSize: 28),
+                    title,
+                    style: theme.textTheme.headlineLarge?.copyWith(fontSize: 26, height: 1.2),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24),
 
-                  // Isi Berita (Paragraf)
+                  // Isi Berita
+                  // Karena dari database biasanya berupa satu string panjang dengan enter (\n),
+                  // Text widget secara otomatis akan membaca \n sebagai paragraf baru.
                   Text(
-                    'Kabar gembira bagi para pecinta kopi di Jakarta Selatan! Vivalavida Coffee kini resmi membuka pintu untuk outlet terbaru kami di jantung kawasan Kemang. Menghadirkan konsep Sophisticated Minimalism, cabang ini dirancang sebagai oase tenang di tengah hiruk-pikuk kota.',
-                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.6),
+                    content,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      height: 1.8, 
+                      fontSize: 15,
+                      color: Colors.black87,
+                    ),
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Arsitektur outlet Kemang menggabungkan elemen material mentah seperti beton ekspos dengan kehangatan kayu jati pilihan, menciptakan suasana yang intim namun profesional. Area semi-outdoor kami yang dipenuhi tanaman hijau menjadi spot favorit baru bagi mereka yang ingin menikmati manual brew sambil merasakan semilir angin Jakarta.',
-                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.6),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Tidak hanya menawarkan tempat yang estetis, cabang Kemang juga menjadi rumah bagi limited seasonal beans yang dipanggang khusus oleh roaster internal kami. Kami mengundang Anda untuk merasakan pengalaman minum kopi yang lebih bermakna di Vivalavida Coffee Kemang.',
-                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.6),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Buka setiap hari mulai pukul 07:00 hingga 22:00 WIB. Mari rayakan awal baru ini bersama kami!',
-                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.6),
-                  ),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // Widget Gambar Default jika artikel tidak punya gambar
+  Widget _buildPlaceholderImage() {
+    return Container(
+      width: double.infinity,
+      height: 250,
+      color: Colors.grey[200],
+      child: const Center(
+        child: Icon(Icons.newspaper, size: 80, color: Colors.grey),
       ),
     );
   }

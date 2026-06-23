@@ -288,32 +288,32 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 24),
 
                   // --- TOMBOL GOOGLE ---
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      // Aksi login dengan Google
-                    },
-                    // Menggunakan gambar logo Google dari URL internet (sebagai dummy)
-                    icon: Image.network(
-                      'https://img.icons8.com/color/48/000000/google-logo.png',
-                      height: 24,
-                      width: 24,
-                    ),
-                    label: const Text(
-                      'Masuk dengan Google',
-                      style: TextStyle(
-                        color: Color(0xFF3D4943),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 50),
-                      side: const BorderSide(color: Color(0xFFE5E7EB)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
+                  // OutlinedButton.icon(
+                  //   onPressed: () {
+                  //     // Aksi login dengan Google
+                  //   },
+                  //   // Menggunakan gambar logo Google dari URL internet (sebagai dummy)
+                  //   icon: Image.network(
+                  //     'https://img.icons8.com/color/48/000000/google-logo.png',
+                  //     height: 24,
+                  //     width: 24,
+                  //   ),
+                  //   label: const Text(
+                  //     'Masuk dengan Google',
+                  //     style: TextStyle(
+                  //       color: Color(0xFF3D4943),
+                  //       fontWeight: FontWeight.bold,
+                  //     ),
+                  //   ),
+                  //   style: OutlinedButton.styleFrom(
+                  //     minimumSize: const Size(double.infinity, 50),
+                  //     side: const BorderSide(color: Color(0xFFE5E7EB)),
+                  //     shape: RoundedRectangleBorder(
+                  //       borderRadius: BorderRadius.circular(12),
+                  //     ),
+                  //   ),
+                  // ),
+                  // const SizedBox(height: 32),
 
                   // --- DAFTAR AKUN BARU ---
                   Row(

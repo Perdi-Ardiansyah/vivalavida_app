@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
 
 class ProductDetailScreen extends StatefulWidget {
-  // 1. Definisikan variabel untuk menampung data yang dikirim dari MenuScreen
   final int menuId;
   final String name;
   final String description;
@@ -27,6 +26,16 @@ class ProductDetailScreen extends StatefulWidget {
 
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
   int _quantity = 1;
+  
+  // 1. Tambahkan Controller untuk input catatan
+  final TextEditingController _catatanController = TextEditingController();
+
+  @override
+  void dispose() {
+    // Jangan lupa hapus controller saat halaman ditutup agar memori tidak bocor
+    _catatanController.dispose();
+    super.dispose();
+  }
 
   // Fungsi helper untuk memformat Rupiah
   String _formatRp(int number) {
@@ -59,7 +68,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             right: 0,
             height: MediaQuery.of(context).size.height * 0.45,
             child: Image.network(
-              widget.imageUrl, // Menggunakan data gambar dinamis
+              widget.imageUrl, 
               fit: BoxFit.cover,
             ),
           ),
@@ -81,7 +90,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             ),
           ),
 
-          // --- 3. KONTEN DETAIL (BOTTOM SHEET STYLE) ---
+          // --- 3. KONTEN DETAIL ---
           Positioned(
             top: MediaQuery.of(context).size.height * 0.4,
             left: 0,
@@ -102,7 +111,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   children: [
                     // Nama Produk
                     Text(
-                      widget.name, // Menggunakan data nama dinamis
+                      widget.name, 
                       style: theme.textTheme.headlineMedium?.copyWith(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -113,7 +122,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
                     // Harga Produk
                     Text(
-                      _formatRp(widget.price), // Menggunakan data harga dinamis
+                      _formatRp(widget.price),
                       style: TextStyle(
                         color: theme.colorScheme.primary,
                         fontSize: 20,
@@ -192,6 +201,42 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 32),
+
+                    // --- KOLOM INPUT CATATAN ---
+                    Text(
+                      'Catatan (Opsional)',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: const Color(0xFF6D7A73),
+                        fontSize: 12,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _catatanController,
+                      maxLines: 2, // Biar kotaknya agak besar
+                      decoration: InputDecoration(
+                        hintText: 'Cth: Kurangi gula, tambah es, dll.',
+                        hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
+                        contentPadding: const EdgeInsets.all(16),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: theme.colorScheme.primary),
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFFF9FAFB),
+                      ),
+                    ),
+
                     const SizedBox(height: 100), // Beri space untuk bottom bar
                   ],
                 ),
@@ -208,13 +253,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           child: ElevatedButton(
             onPressed: widget.isAvailable
                 ? () {
-                    // Panggil provider untuk menyimpan data
+                    // Ambil teks dari controller catatan
+                    final String catatanText = _catatanController.text.trim();
+
+                    // Panggil provider untuk menyimpan data beserta catatannya
                     Provider.of<CartProvider>(context, listen: false).addItem(
                       widget.menuId,
                       widget.name,
                       widget.price,
                       widget.imageUrl,
-                      _quantity, // Mengambil dari jumlah stepper di layar
+                      _quantity,
+                      catatan: catatanText, // <-- Mengirim catatan ke CartProvider
                     );
 
                     // Munculkan notifikasi sukses
@@ -228,10 +277,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       ),
                     );
 
-                    // Opsional: Tutup halaman detail dan kembali ke menu setelah berhasil
                     Navigator.pop(context);
                   }
-                : null, // Tombol disable jika stok habis
+                : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: widget.isAvailable
                   ? theme.colorScheme.primary

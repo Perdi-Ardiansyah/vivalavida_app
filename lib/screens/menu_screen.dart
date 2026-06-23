@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+
 import '../widgets/coffee_item_card.dart';
 import 'product_detail_screen.dart';
 import 'checkout_screen.dart';
 import 'order_list_screen.dart';
 import '../services/menu_service.dart';
-import 'package:provider/provider.dart';
-import '../providers/cart_provider.dart'; // Pastikan path ini sesuai dengan file MenuService kamu
+import '../providers/cart_provider.dart'; 
 
 class MenuScreen extends StatefulWidget {
   const MenuScreen({super.key});
@@ -21,27 +25,34 @@ class _MenuScreenState extends State<MenuScreen> {
   bool _isLoading = true;
   int _selectedCategoryId = 0; // 0 artinya 'Semua'
 
+  // --- VARIABEL BARU UNTUK JUMLAH PESANAN AKTIF ---
+  int _activeOrderCount = 0;
+
   @override
   void initState() {
     super.initState();
-    _fetchData();
+    _fetchInitialData();
   }
 
-  // --- FUNGSI MENGAMBIL DATA DARI LARAVEL ---
-  Future<void> _fetchData() async {
+  // --- MASTER FUNGSI: MEMUAT KATEGORI, MENU, & JUMLAH PESANAN SEKALIGUS ---
+  Future<void> _fetchInitialData() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+
     try {
       MenuService menuService = MenuService();
 
-      // Panggil API kategori dan menu secara bersamaan agar lebih cepat
+      // Menjalankan penarikan data kategori, menu, dan jumlah pesanan secara pararel
       final results = await Future.wait([
         menuService.getCategories(),
         menuService.getMenus(),
+        _fetchActiveOrdersCountSilently(),
       ]);
 
       if (mounted) {
         setState(() {
-          _categories = results[0];
-          _menus = results[1];
+          _categories = results[0] as List<dynamic>;
+          _menus = results[1] as List<dynamic>;
           _isLoading = false;
         });
       }
@@ -50,11 +61,44 @@ class _MenuScreenState extends State<MenuScreen> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal memuat data: $e'),
+            content: Text('Gagal memuat data menu: $e'),
             backgroundColor: Colors.red,
           ),
         );
       }
+    }
+  }
+
+  // --- FUNGSI SILENT FETCH: MENGHITUNG PESANAN AKTIF DARI DATABASE ---
+  Future<void> _fetchActiveOrdersCountSilently() async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? token = prefs.getString('auth_token');
+
+      final url = Uri.parse('http://10.0.2.2:8000/api/orders');
+      final response = await http.get(url, headers: {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token'
+      });
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        List<dynamic> allOrders = data['data'] ?? [];
+
+        // Menghitung pesanan yang statusnya BUKAN selesai / batal
+        int count = allOrders.where((order) {
+          String status = order['status'].toString().toLowerCase();
+          return status != 'completed' && status != 'selesai' && status != 'cancelled' && status != 'batal';
+        }).length;
+
+        if (mounted) {
+          setState(() {
+            _activeOrderCount = count;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error hitung pesanan aktif di menu: $e');
     }
   }
 
@@ -69,6 +113,7 @@ class _MenuScreenState extends State<MenuScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    const colorSecondary = Color(0xFF705A4F);
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -97,7 +142,7 @@ class _MenuScreenState extends State<MenuScreen> {
           ],
         ),
         actions: [
-          // IKON SHOPPING BAG
+          // --- IKON SHOPPING BAG DENGAN TITIK INDIKATOR DINAMIS ---
           Center(
             child: GestureDetector(
               onTap: () {
@@ -106,25 +151,31 @@ class _MenuScreenState extends State<MenuScreen> {
                   MaterialPageRoute(
                     builder: (context) => const OrderListScreen(),
                   ),
-                );
+                ).then((_) => _fetchActiveOrdersCountSilently()); // Refresh jumlah saat kembali ke halaman menu
               },
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF2F4F8),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.shopping_bag_outlined,
-                  color: Colors.black87,
-                  size: 24,
+              child: Badge(
+                // Titik merah kecil hanya muncul jika ada pesanan aktif (> 0)
+                isLabelVisible: _activeOrderCount > 0,
+                smallSize: 10,
+                backgroundColor: theme.colorScheme.error,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF2F4F8),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.shopping_bag_outlined,
+                    color: Colors.black87,
+                    size: 24,
+                  ),
                 ),
               ),
             ),
           ),
           const SizedBox(width: 12),
 
-          // IKON KERANJANG
+          // IKON KERANJANG BELANJA
           Padding(
             padding: const EdgeInsets.only(right: 20.0),
             child: Center(
@@ -137,19 +188,14 @@ class _MenuScreenState extends State<MenuScreen> {
                     ),
                   );
                 },
-                // --- KODE YANG BERUBAH MULAI DARI SINI ---
                 child: Consumer<CartProvider>(
                   builder: (context, cart, child) {
                     return Badge(
                       label: Text(
-                        '${cart.itemCount}', // Angka akan berubah otomatis
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                        ),
+                        '${cart.itemCount}',
+                        style: const TextStyle(color: Colors.white, fontSize: 10),
                       ),
                       backgroundColor: theme.colorScheme.error,
-                      // Badge merah akan disembunyikan jika keranjang masih 0
                       isLabelVisible: cart.itemCount > 0,
                       child: Container(
                         padding: const EdgeInsets.all(8),
@@ -166,7 +212,6 @@ class _MenuScreenState extends State<MenuScreen> {
                     );
                   },
                 ),
-                // --- SAMPAI SINI ---
               ),
             ),
           ),
@@ -182,13 +227,12 @@ class _MenuScreenState extends State<MenuScreen> {
               children: [
                 const SizedBox(height: 16),
 
-                // --- KATEGORI CHIPS (DINAMIS DARI DATABASE) ---
+                // --- KATEGORI CHIPS ---
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Row(
                     children: [
-                      // Chip 'Semua' sebagai default
                       _buildCategoryChip(
                         theme: theme,
                         label: 'Semua',
@@ -196,8 +240,6 @@ class _MenuScreenState extends State<MenuScreen> {
                         onTap: () => setState(() => _selectedCategoryId = 0),
                       ),
                       const SizedBox(width: 12),
-
-                      // Looping data kategori dari API
                       ..._categories.map((cat) {
                         return Padding(
                           padding: const EdgeInsets.only(right: 12.0),
@@ -215,7 +257,7 @@ class _MenuScreenState extends State<MenuScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // --- GRID PRODUK (DINAMIS DARI DATABASE) ---
+                // --- GRID PRODUK MENU ---
                 Expanded(
                   child: _filteredMenus.isEmpty
                       ? const Center(
@@ -231,38 +273,32 @@ class _MenuScreenState extends State<MenuScreen> {
                           ),
                           gridDelegate:
                               const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                childAspectRatio: 0.58,
-                                crossAxisSpacing: 16,
-                                mainAxisSpacing: 16,
-                              ),
+                            crossAxisCount: 2,
+                            childAspectRatio: 0.58,
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                          ),
                           itemCount: _filteredMenus.length,
                           itemBuilder: (context, index) {
                             final menu = _filteredMenus[index];
+                            final hargaFormat = double.tryParse(menu['harga'].toString())?.toInt() ?? 0;
 
-                            // Parsing harga menggunakan double.tryParse agar tidak FormatException
-                            final hargaFormat =
-                                double.tryParse(
-                                  menu['harga'].toString(),
-                                )?.toInt() ??
-                                0;
+                            // Formatter gambar anti-pecah dan anti-crash
+                            String imageUrl = 'https://images.unsplash.com/photo-1551030173-122aabc4489c?q=90&w=800&auto=format&fit=crop';
+                            if (menu['gambar'] != null && menu['gambar'].toString().isNotEmpty) {
+                              imageUrl = menu['gambar'].toString().startsWith('http')
+                                  ? menu['gambar']
+                                  : 'http://10.0.2.2:8000/storage/${menu['gambar']}';
+                            }
 
                             return CoffeeItemCard(
-                              // Jika gambar null, gunakan placeholder dari Unsplash
-                              imageUrl:
-                                  menu['gambar'] ??
-                                  'https://images.unsplash.com/photo-1551030173-122aabc4489c?q=80&w=400&auto=format&fit=crop',
+                              imageUrl: imageUrl,
                               name: menu['nama'] ?? 'Menu Tanpa Nama',
                               description: menu['deskripsi'] ?? '',
                               price: 'Rp $hargaFormat',
-                              originalPrice:
-                                  null, // Siapkan untuk logika diskon nanti
+                              originalPrice: null,
                               isPromo: false,
-                              // Cek ketersediaan dari database (misal menggunakan angka 1 untuk true)
-                              isAvailable:
-                                  menu['tersedia'] == 1 ||
-                                  menu['tersedia'] == true,
-                              // Ganti blok onAddPressed lama dengan ini:
+                              isAvailable: menu['tersedia'] == 1 || menu['tersedia'] == true,
                               onAddPressed: () {
                                 Navigator.push(
                                   context,
@@ -272,12 +308,8 @@ class _MenuScreenState extends State<MenuScreen> {
                                       name: menu['nama'] ?? 'Menu',
                                       description: menu['deskripsi'] ?? '',
                                       price: hargaFormat,
-                                      imageUrl:
-                                          menu['gambar'] ??
-                                          'https://images.unsplash.com/photo-1551030173-122aabc4489c?q=80&w=400&auto=format&fit=crop',
-                                      isAvailable:
-                                          menu['tersedia'] == 1 ||
-                                          menu['tersedia'] == true,
+                                      imageUrl: imageUrl,
+                                      isAvailable: menu['tersedia'] == 1 || menu['tersedia'] == true,
                                     ),
                                   ),
                                 );

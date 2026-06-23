@@ -20,6 +20,17 @@ class _NotificationScreenState extends State<NotificationScreen> {
     _fetchNotifications();
   }
 
+  // Fungsi mengubah format '2026-06-19T16:35:18.000000Z' menjadi '19/06/2026 23:35'
+  String _formatDate(String? dateString) {
+    if (dateString == null || dateString.isEmpty) return 'Baru';
+    try {
+      final date = DateTime.parse(dateString).toLocal();
+      return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return 'Baru';
+    }
+  }
+
   // --- 1. AMBIL DATA NOTIFIKASI DARI LARAVEL ---
   Future<void> _fetchNotifications() async {
     setState(() => isLoading = true);
@@ -33,6 +44,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
         headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'},
       );
 
+      // CEK RESPONS DI TERMINAL VS CODE KAMU!
+      debugPrint('Status Code Notif: ${response.statusCode}');
+      debugPrint('Body Notif: ${response.body}');
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         setState(() {
@@ -41,6 +56,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         });
       } else {
         setState(() => isLoading = false);
+        _showSnackBar('Gagal memuat: Error ${response.statusCode}');
       }
     } catch (e) {
       setState(() => isLoading = false);
@@ -63,6 +79,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
       if (response.statusCode == 200) {
         _showSnackBar('Semua notifikasi ditandai sudah dibaca', isSuccess: true);
         _fetchNotifications(); // Refresh data
+      } else {
+         _showSnackBar('Gagal menandai notifikasi: Error ${response.statusCode}');
       }
     } catch (e) {
       _showSnackBar('Gagal menandai notifikasi.');
@@ -104,7 +122,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
         iconBgColor = const Color(0xFFE6F0EB);
     }
 
-    // Jika sudah dibaca, ubah warna menjadi abu-abu pudar
     if (isRead) {
       iconColor = Colors.grey;
       iconBgColor = Colors.transparent;
@@ -117,7 +134,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    // Memisahkan notifikasi berdasarkan status baca
+    // Memastikan is_read bernilai integer (1/0) atau boolean (true/false) dengan aman
     final unreadNotifs = notifications.where((n) => n['is_read'] == 0 || n['is_read'] == false).toList();
     final readNotifs = notifications.where((n) => n['is_read'] == 1 || n['is_read'] == true).toList();
 
@@ -140,7 +157,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         ),
         centerTitle: false,
         actions: [
-          if (unreadNotifs.isNotEmpty) // Tombol hanya muncul jika ada yang belum dibaca
+          if (unreadNotifs.isNotEmpty)
             IconButton(
               icon: Icon(Icons.checklist, color: theme.colorScheme.primary),
               tooltip: 'Tandai semua dibaca',
@@ -168,7 +185,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // --- SECTION: BELUM DIBACA ---
                     if (unreadNotifs.isNotEmpty) ...[
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -195,14 +211,13 @@ class _NotificationScreenState extends State<NotificationScreen> {
                           iconColor: style['color'],
                           iconBgColor: style['bgColor'],
                           title: notif['judul'] ?? 'Pemberitahuan',
-                          time: 'Baru', // Idealnya diformat dari notif['created_at']
+                          time: _formatDate(notif['created_at']), 
                           description: notif['deskripsi'] ?? '',
                         );
                       }),
                       const SizedBox(height: 24),
                     ],
 
-                    // --- SECTION: SUDAH DIBACA ---
                     if (readNotifs.isNotEmpty) ...[
                       Text('Sudah Dibaca', style: theme.textTheme.headlineMedium?.copyWith(fontSize: 18)),
                       const SizedBox(height: 16),
@@ -216,7 +231,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                           iconColor: style['color'],
                           iconBgColor: style['bgColor'],
                           title: notif['judul'] ?? 'Pemberitahuan',
-                          time: 'Selesai', 
+                          time: _formatDate(notif['created_at']), 
                           description: notif['deskripsi'] ?? '',
                         );
                       }),

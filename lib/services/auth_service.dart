@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_config.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class AuthService {
   // Fungsi Login
@@ -32,6 +33,21 @@ class AuthService {
       return {'success': false, 'message': 'Terjadi kesalahan jaringan: $e'};
     }
   }
+
+  Future<void> updateFcmTokenToServer(String authToken) async {
+  String? fcmToken = await FirebaseMessaging.instance.getToken();
+  
+  if (fcmToken != null) {
+    await http.post(
+      Uri.parse('http://10.0.2.2:8000/api/user/update-fcm'),
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $authToken',
+      },
+      body: {'fcm_token': fcmToken},
+    );
+  }
+}
 
   // Fungsi Logout
   Future<void> logout() async {

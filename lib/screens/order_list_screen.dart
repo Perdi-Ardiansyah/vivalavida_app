@@ -1,14 +1,128 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
-class OrderListScreen extends StatelessWidget {
+class OrderListScreen extends StatefulWidget {
   const OrderListScreen({super.key});
+
+  @override
+  State<OrderListScreen> createState() => _OrderListScreenState();
+}
+
+class _OrderListScreenState extends State<OrderListScreen> {
+  bool _isLoading = true;
+  List<dynamic> _activeOrders = [];
+  List<dynamic> _historyOrders = [];
+  
+  // --- VARIABEL UNTUK MENYIMPAN ID PESANAN YANG DIHAPUS LOKAL ---
+  List<String> _hiddenOrderIds = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _initData();
+  }
+
+  // Fungsi inisialisasi: memuat ID tersembunyi dulu, baru fetch dari Laravel
+  Future<void> _initData() async {
+    await _loadHiddenOrderIds();
+    await _fetchOrders();
+  }
+
+  // 1. Memuat daftar ID tersembunyi dari memori internal HP
+  Future<void> _loadHiddenOrderIds() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _hiddenOrderIds = prefs.getStringList('hidden_order_ids') ?? [];
+      });
+    }
+  }
+
+  // 2. Fungsi hapus lokal (Menyembunyikan pesanan dari UI)
+  Future<void> _deleteOrderLocally(String orderId) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    
+    setState(() {
+      _hiddenOrderIds.add(orderId); // Tambah ID ke daftar hitam lokal
+      // Langsung hapus dari list riwayat di UI agar instan tanpa loading
+      _historyOrders.removeWhere((order) => order['id'].toString() == orderId);
+    });
+
+    // Simpan daftar hitam terbaru ke memori internal HP
+    await prefs.setStringList('hidden_order_ids', _hiddenOrderIds);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Riwayat pesanan berhasil dihapus.'),
+          backgroundColor: Colors.black87,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  // 3. Ambil data dari server
+  Future<void> _fetchOrders() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? token = prefs.getString('auth_token');
+
+      final url = Uri.parse('http://10.0.2.2:8000/api/orders');
+      final response = await http.get(url, headers: {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token'
+      });
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        List<dynamic> allOrders = data['data'] ?? [];
+
+        List<dynamic> active = [];
+        List<dynamic> history = [];
+
+        for (var order in allOrders) {
+          String orderIdStr = order['id']?.toString() ?? '';
+          
+          // FILTER: Jika ID pesanan ada di daftar hitam lokal, LEWATKAN (jangan tampilkan)
+          if (_hiddenOrderIds.contains(orderIdStr)) {
+            continue; 
+          }
+
+          String status = order['status'].toString().toLowerCase();
+          if (status == 'selesai' || status == 'completed' || status == 'batal' || status == 'cancelled') {
+            history.add(order);
+          } else {
+            active.add(order);
+          }
+        }
+
+        if (mounted) {
+          setState(() {
+            _activeOrders = active;
+            _historyOrders = history;
+            _isLoading = false;
+          });
+        }
+      } else {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      debugPrint('Error fetching orders: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return DefaultTabController(
-      length: 2, // Jumlah tab
+      length: 2, 
       child: Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
         appBar: AppBar(
@@ -27,7 +141,6 @@ class OrderListScreen extends StatelessWidget {
             ),
           ),
           centerTitle: true,
-          // --- TAB BAR CONFIGURATION ---
           bottom: TabBar(
             indicatorColor: theme.colorScheme.primary,
             indicatorWeight: 3,
@@ -43,116 +156,149 @@ class OrderListScreen extends StatelessWidget {
           ),
         ),
         
-        // --- ISI DARI TAB ---
-        body: TabBarView(
-          children: [
-            // Konten Tab 1: Pesanan Aktif
-            _buildActiveOrders(theme),
-            
-            // Konten Tab 2: Riwayat Pesanan (Bisa dikembangkan nanti)
-            const Center(child: Text('Belum ada riwayat pesanan.')),
-          ],
-        ),
+        body: _isLoading 
+          ? Center(child: CircularProgressIndicator(color: theme.colorScheme.primary))
+          : TabBarView(
+              children: [
+                RefreshIndicator(
+                  onRefresh: _fetchOrders,
+                  color: theme.colorScheme.primary,
+                  child: _buildOrderList(theme, _activeOrders, true),
+                ),
+                RefreshIndicator(
+                  onRefresh: _fetchOrders,
+                  color: theme.colorScheme.primary,
+                  child: _buildOrderList(theme, _historyOrders, false),
+                ),
+              ],
+            ),
       ),
     );
   }
 
-  // --- WIDGET LIST PESANAN AKTIF ---
-  Widget _buildActiveOrders(ThemeData theme) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20.0),
-      child: Column(
-        children: [
-          // Kartu 1: Sedang Disiapkan
-          _buildOrderCard(
-            theme: theme,
-            orderId: '#VLV-8829',
-            statusText: 'SEDANG DISIAPKAN',
-            statusColor: const Color(0xFFD97706), // Warna teks oranye
-            statusBgColor: const Color(0xFFFEF3C7), // Warna background oranye muda
-            itemNames: 'Aren Latte, Almond Croissant',
-            itemCount: '2 Items',
-            imageUrls: [
-              'https://images.unsplash.com/photo-1558403194-611308249627?q=80&w=100&auto=format&fit=crop',
-              'https://images.unsplash.com/photo-1623334044303-241021148842?q=80&w=100&auto=format&fit=crop',
-            ],
-            estimationTime: '10:45 WIB',
-            totalPrice: 'Rp 68.000',
-          ),
-          const SizedBox(height: 16),
-          
-          // Kartu 2: Menunggu Antrian
-          _buildOrderCard(
-            theme: theme,
-            orderId: '#VLV-8832',
-            statusText: 'MENUNGGU ANTRIAN',
-            statusColor: const Color(0xFF2563EB), // Warna teks biru
-            statusBgColor: const Color(0xFFDBEAFE), // Warna background biru muda
-            itemNames: 'Long Black (Hot)',
-            itemCount: '1 Item',
-            imageUrls: [
-              'https://images.unsplash.com/photo-1551030173-122aabc4489c?q=80&w=100&auto=format&fit=crop',
-            ],
-            estimationTime: '11:05 WIB',
-            totalPrice: 'Rp 32.000',
-          ),
-          
-          const SizedBox(height: 40),
-          
-          // --- ILUSTRASI KOSONG / AJAKAN PESAN ---
-          Column(
+  Widget _buildOrderList(ThemeData theme, List<dynamic> orders, bool isActiveTab) {
+    if (orders.isEmpty) {
+      return SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Container(
+          height: MediaQuery.of(context).size.height * 0.6,
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF2F4F8),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.receipt_long_outlined, color: Color(0xFF6D7A73), size: 32),
+                decoration: const BoxDecoration(color: Color(0xFFF2F4F8), shape: BoxShape.circle),
+                child: const Icon(Icons.receipt_long_outlined, color: Color(0xFF6D7A73), size: 40),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Text(
-                'Haus? Yuk pesan kopi lagi!',
+                isActiveTab ? 'Belum ada pesanan aktif.' : 'Belum ada riwayat pesanan.',
+                style: theme.textTheme.headlineMedium?.copyWith(fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Haus? Yuk pesan kopi sekarang!',
                 style: theme.textTheme.bodyMedium?.copyWith(color: const Color(0xFF6D7A73)),
               ),
             ],
           ),
-        ],
-      ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.all(20.0),
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: orders.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 16),
+      itemBuilder: (context, index) {
+        final order = orders[index];
+        // Kirim parameter isActiveTab ke card generator
+        return _buildDynamicOrderCard(theme, order, isActiveTab);
+      },
     );
   }
 
-  // --- WIDGET KARTU PESANAN ---
-  Widget _buildOrderCard({
-    required ThemeData theme,
-    required String orderId,
-    required String statusText,
-    required Color statusColor,
-    required Color statusBgColor,
-    required String itemNames,
-    required String itemCount,
-    required List<String> imageUrls,
-    required String estimationTime,
-    required String totalPrice,
-  }) {
+  Widget _buildDynamicOrderCard(ThemeData theme, dynamic order, bool isActiveCard) {
+    String rawStatus = order['status']?.toString().toLowerCase() ?? 'new';
+    String statusText = 'MENUNGGU';
+    Color statusColor = const Color(0xFFD97706); 
+    Color statusBgColor = const Color(0xFFFEF3C7);
+
+    if (rawStatus == 'new' || rawStatus == 'pending') {
+      statusText = 'SEDANG DISIAPKAN';
+      statusColor = const Color(0xFFD97706);
+      statusBgColor = const Color(0xFFFEF3C7);
+    } else if (rawStatus == 'ready') {
+      statusText = 'SIAP DIAMBIL';
+      statusColor = const Color(0xFF2563EB); 
+      statusBgColor = const Color(0xFFDBEAFE);
+    } else if (rawStatus == 'completed') {
+      statusText = 'SELESAI';
+      statusColor = const Color(0xFF046A41); 
+      statusBgColor = const Color(0xFFE8F5E9);
+    } else if (rawStatus == 'cancelled' || rawStatus == 'batal') {
+      statusText = 'DIBATALKAN';
+      statusColor = const Color(0xFFDC2626); 
+      statusBgColor = const Color(0xFFFEE2E2);
+    }
+
+    String rawHarga = order['total_akhir']?.toString() ?? order['total_harga']?.toString() ?? '0';
+    rawHarga = rawHarga.split('.')[0]; 
+    int totalHarga = int.tryParse(rawHarga) ?? 0;
+
+    List<dynamic> items = order['pesanan_items'] ?? order['items'] ?? [];
+    List<String> imageUrls = [];
+    List<String> itemNames = [];
+    
+    for (var item in items) {
+      String name = 'Menu';
+      if (item['menu'] != null && item['menu']['nama'] != null) {
+        name = item['menu']['nama'].toString();
+      } else if (item['nama_menu'] != null) {
+        name = item['nama_menu'].toString();
+      }
+      itemNames.add(name);
+
+      dynamic imgData = item['menu'] != null ? item['menu']['gambar'] : item['gambar'];
+      if (imgData != null && imgData.toString().trim().isNotEmpty) {
+        String imgStr = imgData.toString();
+        String finalUrl = imgStr.startsWith('http') ? imgStr : 'http://10.0.2.2:8000/storage/$imgStr';
+        imageUrls.add(finalUrl);
+      }
+    }
+
+    if (imageUrls.isEmpty) {
+      imageUrls.add('https://images.unsplash.com/photo-1551030173-122aabc4489c?q=90&w=400&auto=format&fit=crop');
+    }
+
+    String itemNamesString = itemNames.join(', ');
+    if (itemNamesString.isEmpty) itemNamesString = 'Pesanan Vivalavida';
+
+    String databaseId = order['id']?.toString() ?? '';
+    String orderId = '#VLV-$databaseId';
+
+    String timeStr = '-';
+    if (order['created_at'] != null) {
+      String rawTime = order['created_at'].toString();
+      if (rawTime.length >= 16) {
+        timeStr = '${rawTime.substring(11, 16)} WIB';
+      } else {
+        timeStr = rawTime;
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. Header (ID Pesanan & Status)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -164,36 +310,53 @@ class OrderListScreen extends StatelessWidget {
                   Text(orderId, style: theme.textTheme.labelSmall?.copyWith(fontSize: 14)),
                 ],
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusBgColor,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  statusText,
-                  style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.bold),
-                ),
-              ),
+              
+              // --- LOGIKA TOMBOL HAPUS / LABEL STATUS ---
+              // Jika ini Tab Riwayat (bukan pesanan aktif), tampilkan tombol ikon sampah di pojok kanan kartu
+              !isActiveCard 
+                ? IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.grey, size: 20),
+                    onPressed: () {
+                      // Munculkan dialog konfirmasi sebelum menghapus secara lokal
+                      showDialog(
+                        context: context,
+                        builder: (BuildContext context) {
+                          return AlertDialog(
+                            title: const Text('Hapus Riwayat?'),
+                            content: const Text('Pesanan ini akan dihapus dari daftar tampilan Anda.'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  _deleteOrderLocally(databaseId); // Sembunyikan
+                                },
+                                child: const Text('Hapus', style: TextStyle(color: Colors.red)),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    },
+                  )
+                : Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(color: statusBgColor, borderRadius: BorderRadius.circular(6)),
+                    child: Text(statusText, style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.bold)),
+                  ),
             ],
           ),
           const SizedBox(height: 16),
-          
-          // 2. Info Item (Gambar & Nama)
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Tumpukan Gambar (Maksimal tampilkan 2 untuk preview)
               SizedBox(
                 width: imageUrls.length > 1 ? 60 : 40,
                 height: 40,
                 child: Stack(
                   children: [
                     if (imageUrls.length > 1)
-                      Positioned(
-                        left: 20,
-                        child: _buildItemImage(imageUrls[1]),
-                      ),
+                      Positioned(left: 20, child: _buildItemImage(imageUrls[1])),
                     _buildItemImage(imageUrls[0]),
                   ],
                 ),
@@ -203,38 +366,28 @@ class OrderListScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      itemNames,
-                      style: theme.textTheme.labelSmall?.copyWith(fontSize: 13),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    Text(itemNamesString, style: theme.textTheme.labelSmall?.copyWith(fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 4),
-                    Text(itemCount, style: theme.textTheme.bodyMedium?.copyWith(fontSize: 11, color: const Color(0xFF6D7A73))),
+                    Text('${items.length} Item', style: theme.textTheme.bodyMedium?.copyWith(fontSize: 11, color: const Color(0xFF6D7A73))),
                   ],
                 ),
               ),
             ],
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16.0),
-            child: Divider(color: Color(0xFFE5E7EB), height: 1),
-          ),
-          
-          // 3. Footer (Estimasi & Total Harga)
+          const Padding(padding: EdgeInsets.symmetric(vertical: 16.0), child: Divider(color: Color(0xFFE5E7EB), height: 1)),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('ESTIMASI SELESAI', style: theme.textTheme.bodyMedium?.copyWith(fontSize: 9, color: const Color(0xFF6D7A73))),
+                  Text(rawStatus == 'completed' ? 'SELESAI PADA' : 'WAKTU PESANAN', style: theme.textTheme.bodyMedium?.copyWith(fontSize: 9, color: const Color(0xFF6D7A73))),
                   const SizedBox(height: 2),
                   Row(
                     children: [
                       Icon(Icons.access_time, size: 12, color: theme.colorScheme.primary),
                       const SizedBox(width: 4),
-                      Text(estimationTime, style: theme.textTheme.labelSmall?.copyWith(fontSize: 12, color: theme.colorScheme.primary)),
+                      Text(timeStr, style: theme.textTheme.labelSmall?.copyWith(fontSize: 12, color: theme.colorScheme.primary)),
                     ],
                   ),
                 ],
@@ -244,7 +397,7 @@ class OrderListScreen extends StatelessWidget {
                 children: [
                   Text('TOTAL PEMBAYARAN', style: theme.textTheme.bodyMedium?.copyWith(fontSize: 9, color: const Color(0xFF6D7A73))),
                   const SizedBox(height: 2),
-                  Text(totalPrice, style: theme.textTheme.headlineMedium?.copyWith(fontSize: 16, color: theme.colorScheme.primary)),
+                  Text('Rp ${totalHarga.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}', style: theme.textTheme.headlineMedium?.copyWith(fontSize: 16, color: theme.colorScheme.primary)),
                 ],
               ),
             ],
@@ -254,20 +407,14 @@ class OrderListScreen extends StatelessWidget {
     );
   }
 
-  // Helper untuk membuat gambar kotak kecil dengan rounded corner
   Widget _buildItemImage(String url) {
     return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white, width: 2), // Efek border putih agar tumpukan terlihat jelas
-      ),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white, width: 2)),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(6),
         child: Image.network(
-          url,
-          width: 36,
-          height: 36,
-          fit: BoxFit.cover,
+          url, width: 36, height: 36, fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey[300]),
         ),
       ),
     );

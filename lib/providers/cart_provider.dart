@@ -2,32 +2,34 @@ import 'package:flutter/material.dart';
 
 // --- MODEL DATA UNTUK ITEM DI KERANJANG ---
 class CartItem {
+  final String id; // Tambahkan ID unik untuk keranjang (gabungan menuId + catatan)
   final int menuId;
   final String name;
   final int price;
   int quantity;
   final String imageUrl;
+  final String? catatan; 
 
   CartItem({
+    required this.id, // Wajib ada untuk key Map
     required this.menuId,
     required this.name,
     required this.price,
     required this.quantity,
     required this.imageUrl,
+    this.catatan, 
   });
 }
 
 // --- LOGIKA PROVIDER KERANJANG ---
 class CartProvider with ChangeNotifier {
-  // Menggunakan Map agar lebih mudah mencari menu berdasarkan ID
-  final Map<int, CartItem> _items = {};
+  // Ubah tipe Map dari <int, CartItem> menjadi <String, CartItem>
+  final Map<String, CartItem> _items = {};
 
-  Map<int, CartItem> get items => _items;
+  Map<String, CartItem> get items => _items;
 
-  // Menghitung jumlah unik jenis menu di keranjang (untuk angka di Badge merah)
   int get itemCount => _items.length;
 
-  // Menghitung total harga semua pesanan
   int get totalAmount {
     var total = 0;
     _items.forEach((key, cartItem) {
@@ -37,58 +39,72 @@ class CartProvider with ChangeNotifier {
   }
 
   // Fungsi menambah item ke keranjang
-  void addItem(int menuId, String name, int price, String imageUrl, int quantity) {
-    if (_items.containsKey(menuId)) {
-      // Jika kopi sudah ada di keranjang, cukup tambahkan jumlahnya (quantity)
+  void addItem(
+    int menuId,
+    String name,
+    int price,
+    String imageUrl,
+    int quantity, {
+    String? catatan, // Parameter opsional
+  }) {
+    // 1. Buat key unik (Contoh: "5_Less sugar" atau "5_")
+    String cartKey = '${menuId}_${catatan ?? ""}';
+
+    if (_items.containsKey(cartKey)) {
+      // Jika kopi dengan CATATAN YANG SAMA sudah ada, tambah jumlahnya
       _items.update(
-        menuId,
+        cartKey,
         (existingCartItem) => CartItem(
+          id: existingCartItem.id,
           menuId: existingCartItem.menuId,
           name: existingCartItem.name,
           price: existingCartItem.price,
           quantity: existingCartItem.quantity + quantity,
           imageUrl: existingCartItem.imageUrl,
+          catatan: existingCartItem.catatan,
         ),
       );
     } else {
-      // Jika kopi belum ada, buat entri baru
+      // Jika belum ada / catatannya berbeda, buat baris baru di keranjang
       _items.putIfAbsent(
-        menuId,
+        cartKey,
         () => CartItem(
+          id: cartKey,
           menuId: menuId,
           name: name,
           price: price,
           quantity: quantity,
           imageUrl: imageUrl,
+          catatan: catatan,
         ),
       );
     }
-    // Wajib dipanggil agar seluruh UI (seperti Badge merah) ter-update otomatis
-    notifyListeners(); 
+    notifyListeners();
   }
 
-  // Fungsi untuk mengurangi jumlah item atau menghapusnya jika sisa 1
-  void reduceQuantity(int menuId) {
-    if (!_items.containsKey(menuId)) return;
+  // Fungsi untuk mengurangi jumlah item (Sekarang menggunakan cartKey berjenis String)
+  void reduceQuantity(String cartKey) {
+    if (!_items.containsKey(cartKey)) return;
 
-    if (_items[menuId]!.quantity > 1) {
+    if (_items[cartKey]!.quantity > 1) {
       _items.update(
-        menuId,
+        cartKey,
         (existing) => CartItem(
+          id: existing.id,
           menuId: existing.menuId,
           name: existing.name,
           price: existing.price,
           quantity: existing.quantity - 1,
           imageUrl: existing.imageUrl,
+          catatan: existing.catatan,
         ),
       );
     } else {
-      _items.remove(menuId);
+      _items.remove(cartKey);
     }
     notifyListeners();
   }
 
-  // Fungsi untuk membersihkan keranjang (dipanggil setelah sukses bayar)
   void clear() {
     _items.clear();
     notifyListeners();
