@@ -69,7 +69,7 @@ class _QrisPaymentScreenState extends State<QrisPaymentScreen> {
     try {
       // Ganti IP dengan URL server produksimu nanti jika sudah online
       final url = Uri.parse(
-        'http://10.0.2.2:8000/api/transaksi/status/${widget.orderId}',
+        'https://vivalavidacoffeshop.rf.gd/api/transaksi/status/${widget.orderId}',
       );
       final response = await http.get(
         url,
@@ -116,7 +116,7 @@ class _QrisPaymentScreenState extends State<QrisPaymentScreen> {
 
     try {
       final url = Uri.parse(
-        'http://10.0.2.2:8000/api/transaksi/status/${widget.orderId}',
+        'https://vivalavidacoffeshop.rf.gd/api/transaksi/status/${widget.orderId}',
       );
       final response = await http.get(
         url,

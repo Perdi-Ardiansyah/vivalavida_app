@@ -53,7 +53,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       // 2. Sertakan token di dalam Headers
       final response = await http.get(
-        Uri.parse('http://10.0.2.2:8000/api/tax-rate'),
+        Uri.parse('https://vivalavidacoffeshop.rf.gd/api/tax-rate'),
         headers: {
           'Accept': 'application/json',
           'Authorization': 'Bearer $token', // <- Ini yang sebelumnya tertinggal
@@ -81,7 +81,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     try {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
-      final url = Uri.parse('http://10.0.2.2:8000/api/vouchers/me');
+      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/vouchers/me');
 
       final response = await http.get(
         url,

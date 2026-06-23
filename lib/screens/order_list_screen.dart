@@ -72,7 +72,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
 
-      final url = Uri.parse('http://10.0.2.2:8000/api/orders');
+      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/orders');
       final response = await http.get(url, headers: {
         'Accept': 'application/json',
         'Authorization': 'Bearer $token'
@@ -264,7 +264,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
       dynamic imgData = item['menu'] != null ? item['menu']['gambar'] : item['gambar'];
       if (imgData != null && imgData.toString().trim().isNotEmpty) {
         String imgStr = imgData.toString();
-        String finalUrl = imgStr.startsWith('http') ? imgStr : 'http://10.0.2.2:8000/storage/$imgStr';
+        String finalUrl = imgStr.startsWith('http') ? imgStr : 'https://vivalavidacoffeshop.rf.gd/storage/$imgStr';
         imageUrls.add(finalUrl);
       }
     }

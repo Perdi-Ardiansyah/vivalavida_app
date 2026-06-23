@@ -36,7 +36,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       String? token = prefs.getString('auth_token');
       // PENTING: Ganti 10.0.2.2 dengan IP WiFi laptopmu jika kamu pakai HP Fisik!
       final url = Uri.parse(
-        'http://10.0.2.2:8000/api/transaksi/struk/$pesananId',
+        'https://vivalavidacoffeshop.rf.gd/api/transaksi/struk/$pesananId',
       );
 
       final response = await http.get(

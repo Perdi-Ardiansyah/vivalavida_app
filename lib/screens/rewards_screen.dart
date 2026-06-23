@@ -35,9 +35,9 @@ class _RewardsScreenState extends State<RewardsScreen> {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
 
-      final userUrl = Uri.parse('http://10.0.2.2:8000/api/user');
-      final rewardsUrl = Uri.parse('http://10.0.2.2:8000/api/rewards');
-      final myVouchersUrl = Uri.parse('http://10.0.2.2:8000/api/vouchers/me');
+      final userUrl = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user');
+      final rewardsUrl = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/rewards');
+      final myVouchersUrl = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/vouchers/me');
 
       // Tembak 3 API sekaligus agar hemat waktu loading
       final responses = await Future.wait([
@@ -88,7 +88,7 @@ class _RewardsScreenState extends State<RewardsScreen> {
     try {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
-      final url = Uri.parse('http://10.0.2.2:8000/api/rewards/redeem');
+      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/rewards/redeem');
 
       final response = await http.post(
         url,

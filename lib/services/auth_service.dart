@@ -39,7 +39,7 @@ class AuthService {
   
   if (fcmToken != null) {
     await http.post(
-      Uri.parse('http://10.0.2.2:8000/api/user/update-fcm'),
+      Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user/update-fcm'),
       headers: {
         'Accept': 'application/json',
         'Authorization': 'Bearer $authToken',

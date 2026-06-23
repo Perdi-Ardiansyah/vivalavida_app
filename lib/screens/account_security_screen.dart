@@ -47,11 +47,11 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
       String? token = prefs.getString('auth_token');
 
       // Ambil Profil (untuk status 2FA)
-      final userRes = await http.get(Uri.parse('http://10.0.2.2:8000/api/user'),
+      final userRes = await http.get(Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user'),
           headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'});
       
       // Ambil Riwayat Login
-      final historyRes = await http.get(Uri.parse('http://10.0.2.2:8000/api/user/login-history'),
+      final historyRes = await http.get(Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user/login-history'),
           headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'});
 
       if (userRes.statusCode == 200 && historyRes.statusCode == 200) {
@@ -81,7 +81,7 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
 
-      final url = Uri.parse('http://10.0.2.2:8000/api/user/toggle-2fa');
+      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user/toggle-2fa');
       final response = await http.post(
         url,
         headers: {
@@ -109,7 +109,7 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
 
-      final url = Uri.parse('http://10.0.2.2:8000/api/user/logout-other-devices');
+      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user/logout-other-devices');
       final response = await http.post(
         url,
         headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'},
@@ -147,7 +147,7 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
 
-      final url = Uri.parse('http://10.0.2.2:8000/api/user/change-password');
+      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user/change-password');
       final response = await http.put(
         url,
         headers: {

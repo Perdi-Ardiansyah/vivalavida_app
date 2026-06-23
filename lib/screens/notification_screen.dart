@@ -38,7 +38,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
 
-      final url = Uri.parse('http://10.0.2.2:8000/api/user/notifications');
+      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user/notifications');
       final response = await http.get(
         url,
         headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'},
@@ -70,7 +70,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
 
-      final url = Uri.parse('http://10.0.2.2:8000/api/user/notifications/read');
+      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user/notifications/read');
       final response = await http.put(
         url,
         headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'},

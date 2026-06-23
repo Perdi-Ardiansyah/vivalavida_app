@@ -62,7 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
 
-      final url = Uri.parse('http://10.0.2.2:8000/api/user');
+      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user');
       final response = await http.get(url, headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'});
 
       if (response.statusCode == 200) {
@@ -91,7 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
 
-      final url = Uri.parse('http://10.0.2.2:8000/api/promos');
+      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/promos');
       final response = await http.get(url, headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'});
 
       if (response.statusCode == 200) {
@@ -109,7 +109,7 @@ class _HomeScreenState extends State<HomeScreen> {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
 
-      final url = Uri.parse('http://10.0.2.2:8000/api/articles');
+      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/articles');
       final response = await http.get(url, headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'});
 
       if (response.statusCode == 200) {
@@ -127,7 +127,7 @@ class _HomeScreenState extends State<HomeScreen> {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
 
-      final url = Uri.parse('http://10.0.2.2:8000/api/user/notifications');
+      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user/notifications');
       final response = await http.get(url, headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'});
 
       if (response.statusCode == 200) {
@@ -282,7 +282,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 builder: (BuildContext context) {
                                   String imageUrl = promo['gambar'] != null && promo['gambar'].toString().startsWith('http')
                                       ? promo['gambar'] 
-                                      : 'http://10.0.2.2:8000/storage/${promo['gambar']}';
+                                      : 'https://vivalavidacoffeshop.rf.gd/storage/${promo['gambar']}';
 
                                   return Container(
                                     width: double.infinity,
@@ -365,7 +365,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             if (article['gambar'] != null) {
                               imageUrl = article['gambar'].toString().startsWith('http') 
                                 ? article['gambar'] 
-                                : 'http://10.0.2.2:8000/storage/${article['gambar']}';
+                                : 'https://vivalavidacoffeshop.rf.gd/storage/${article['gambar']}';
                             }
                             
                             return GestureDetector(

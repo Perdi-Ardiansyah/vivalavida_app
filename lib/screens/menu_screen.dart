@@ -75,7 +75,7 @@ class _MenuScreenState extends State<MenuScreen> {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
 
-      final url = Uri.parse('http://10.0.2.2:8000/api/orders');
+      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/orders');
       final response = await http.get(url, headers: {
         'Accept': 'application/json',
         'Authorization': 'Bearer $token'
@@ -288,7 +288,7 @@ class _MenuScreenState extends State<MenuScreen> {
                             if (menu['gambar'] != null && menu['gambar'].toString().isNotEmpty) {
                               imageUrl = menu['gambar'].toString().startsWith('http')
                                   ? menu['gambar']
-                                  : 'http://10.0.2.2:8000/storage/${menu['gambar']}';
+                                  : 'https://vivalavidacoffeshop.rf.gd/storage/${menu['gambar']}';
                             }
 
                             return CoffeeItemCard(

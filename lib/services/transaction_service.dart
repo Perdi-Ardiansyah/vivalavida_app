@@ -5,7 +5,7 @@ class TransactionService {
   final Dio _dio = Dio(
     BaseOptions(
       // GANTI DENGAN IP LARAVEL KAMU, misal: http://192.168.1.5:8000/api
-      baseUrl: 'http://10.0.2.2:8000/api', 
+      baseUrl: 'https://vivalavidacoffeshop.rf.gd/api', 
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
       headers: {
