@@ -44,7 +44,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
 
-      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user');
+      final url = Uri.parse('https://vivalavida.kotapintar.my.id/api/user');
       final response = await http.get(
         url,
         headers: {
@@ -63,7 +63,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           userPoints = int.tryParse(userData['poin'].toString()) ?? 0;
           
           if (userData['foto_profil'] != null) {
-            profilePicUrl = 'https://vivalavidacoffeshop.rf.gd/storage/' + userData['foto_profil']; 
+            profilePicUrl = 'https://vivalavida.kotapintar.my.id/storage/' + userData['foto_profil']; 
           }
           
           isLoading = false;
@@ -140,7 +140,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
 
-      var request = http.MultipartRequest('POST', Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user/upload-photo'));
+      var request = http.MultipartRequest('POST', Uri.parse('https://vivalavida.kotapintar.my.id/api/user/upload-photo'));
       
       request.headers['Authorization'] = 'Bearer $token';
       request.headers['Accept'] = 'application/json';
@@ -198,7 +198,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       String? token = prefs.getString('auth_token');
 
       // 2. Beri tahu Laravel untuk menghapus token ini
-      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/logout');
+      final url = Uri.parse('https://vivalavida.kotapintar.my.id/api/logout');
       await http.post(
         url,
         headers: {

@@ -35,9 +35,9 @@ class _RewardsScreenState extends State<RewardsScreen> {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
 
-      final userUrl = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user');
-      final rewardsUrl = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/rewards');
-      final myVouchersUrl = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/vouchers/me');
+      final userUrl = Uri.parse('https://vivalavida.kotapintar.my.id/api/user');
+      final rewardsUrl = Uri.parse('https://vivalavida.kotapintar.my.id/api/rewards');
+      final myVouchersUrl = Uri.parse('https://vivalavida.kotapintar.my.id/api/vouchers/me');
 
       // Tembak 3 API sekaligus agar hemat waktu loading
       final responses = await Future.wait([
@@ -49,7 +49,8 @@ class _RewardsScreenState extends State<RewardsScreen> {
       if (responses[0].statusCode == 200) {
         final userData = json.decode(responses[0].body);
         final user = userData['data'] ?? userData;
-        userPoints = int.tryParse(user['poin'].toString()) ?? 0;
+        // PENGAMAN 1: Tangani nilai poin jika null dari database
+        userPoints = int.tryParse(user['poin']?.toString() ?? '0') ?? 0;
       }
 
       if (responses[1].statusCode == 200) {
@@ -88,7 +89,7 @@ class _RewardsScreenState extends State<RewardsScreen> {
     try {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
-      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/rewards/redeem');
+      final url = Uri.parse('https://vivalavida.kotapintar.my.id/api/rewards/redeem');
 
       final response = await http.post(
         url,
@@ -123,8 +124,9 @@ class _RewardsScreenState extends State<RewardsScreen> {
     }
   }
 
+  // PENGAMAN 2: Format angka yang kebal crash locale
   String formatPoin(int points) {
-    return NumberFormat.decimalPattern('id').format(points);
+    return NumberFormat('#,##0').format(points).replaceAll(',', '.');
   }
 
   @override
@@ -261,7 +263,8 @@ class _RewardsScreenState extends State<RewardsScreen> {
               final int id = voucher['id'] ?? 0;
               final String title = voucher['nama'] ?? 'Voucher Diskon';
               final String desc = voucher['deskripsi'] ?? 'Klik klaim untuk menukar poin.';
-              final int pointsNeeded = int.tryParse(voucher['poin_dibutuhkan'].toString()) ?? 0;
+              // PENGAMAN 3: Tangani nilai poin_dibutuhkan jika null
+              final int pointsNeeded = int.tryParse(voucher['poin_dibutuhkan']?.toString() ?? '0') ?? 0;
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12.0),
@@ -334,11 +337,13 @@ class _RewardsScreenState extends State<RewardsScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6), border: Border.all(color: const Color(0xFFE5E7EB))),
-                child: Text(voucher['kode'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.5)),
+                // PENGAMAN 4: Tangani teks kode voucher jika null
+                child: Text(voucher['kode'] ?? 'TIDAK-ADA-KODE', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.5)),
               ),
               InkWell(
                 onTap: () {
-                  Clipboard.setData(ClipboardData(text: voucher['kode']));
+                  // PENGAMAN 5: Tangani clipboard jika kode null
+                  Clipboard.setData(ClipboardData(text: voucher['kode'] ?? ''));
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kode voucher disalin!')));
                 },
                 child: Text('Salin', style: TextStyle(color: theme.colorScheme.primary, fontSize: 12, fontWeight: FontWeight.bold)),

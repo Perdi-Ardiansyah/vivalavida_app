@@ -27,7 +27,7 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
 
-      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user/addresses');
+      final url = Uri.parse('https://vivalavida.kotapintar.my.id/api/user/addresses');
       final response = await http.get(
         url,
         headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'},
@@ -54,7 +54,7 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
 
-      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user/addresses/$id');
+      final url = Uri.parse('https://vivalavida.kotapintar.my.id/api/user/addresses/$id');
       final response = await http.delete(
         url,
         headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'},
@@ -152,8 +152,8 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
       String? token = prefs.getString('auth_token');
 
       final url = id == null 
-          ? Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user/addresses')
-          : Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user/addresses/$id');
+          ? Uri.parse('https://vivalavida.kotapintar.my.id/api/user/addresses')
+          : Uri.parse('https://vivalavida.kotapintar.my.id/api/user/addresses/$id');
 
       final response = id == null 
           ? await http.post(url, headers: {'Accept': 'application/json', 'Content-Type': 'application/json', 'Authorization': 'Bearer $token'}, body: json.encode(data))

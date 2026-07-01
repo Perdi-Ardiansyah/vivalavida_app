@@ -9,7 +9,7 @@ import 'product_detail_screen.dart';
 import 'checkout_screen.dart';
 import 'order_list_screen.dart';
 import '../services/menu_service.dart';
-import '../providers/cart_provider.dart'; 
+import '../providers/cart_provider.dart';
 
 class MenuScreen extends StatefulWidget {
   const MenuScreen({super.key});
@@ -75,11 +75,14 @@ class _MenuScreenState extends State<MenuScreen> {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
 
-      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/orders');
-      final response = await http.get(url, headers: {
-        'Accept': 'application/json',
-        'Authorization': 'Bearer $token'
-      });
+      final url = Uri.parse('https://vivalavida.kotapintar.my.id/api/orders');
+      final response = await http.get(
+        url,
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -88,7 +91,10 @@ class _MenuScreenState extends State<MenuScreen> {
         // Menghitung pesanan yang statusnya BUKAN selesai / batal
         int count = allOrders.where((order) {
           String status = order['status'].toString().toLowerCase();
-          return status != 'completed' && status != 'selesai' && status != 'cancelled' && status != 'batal';
+          return status != 'completed' &&
+              status != 'selesai' &&
+              status != 'cancelled' &&
+              status != 'batal';
         }).length;
 
         if (mounted) {
@@ -151,7 +157,9 @@ class _MenuScreenState extends State<MenuScreen> {
                   MaterialPageRoute(
                     builder: (context) => const OrderListScreen(),
                   ),
-                ).then((_) => _fetchActiveOrdersCountSilently()); // Refresh jumlah saat kembali ke halaman menu
+                ).then(
+                  (_) => _fetchActiveOrdersCountSilently(),
+                ); // Refresh jumlah saat kembali ke halaman menu
               },
               child: Badge(
                 // Titik merah kecil hanya muncul jika ada pesanan aktif (> 0)
@@ -193,7 +201,10 @@ class _MenuScreenState extends State<MenuScreen> {
                     return Badge(
                       label: Text(
                         '${cart.itemCount}',
-                        style: const TextStyle(color: Colors.white, fontSize: 10),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                        ),
                       ),
                       backgroundColor: theme.colorScheme.error,
                       isLabelVisible: cart.itemCount > 0,
@@ -273,22 +284,29 @@ class _MenuScreenState extends State<MenuScreen> {
                           ),
                           gridDelegate:
                               const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            childAspectRatio: 0.58,
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 16,
-                          ),
+                                crossAxisCount: 2,
+                                childAspectRatio: 0.58,
+                                crossAxisSpacing: 16,
+                                mainAxisSpacing: 16,
+                              ),
                           itemCount: _filteredMenus.length,
                           itemBuilder: (context, index) {
                             final menu = _filteredMenus[index];
-                            final hargaFormat = double.tryParse(menu['harga'].toString())?.toInt() ?? 0;
+                            final hargaFormat =
+                                double.tryParse(
+                                  menu['harga'].toString(),
+                                )?.toInt() ??
+                                0;
 
                             // Formatter gambar anti-pecah dan anti-crash
-                            String imageUrl = 'https://images.unsplash.com/photo-1551030173-122aabc4489c?q=90&w=800&auto=format&fit=crop';
-                            if (menu['gambar'] != null && menu['gambar'].toString().isNotEmpty) {
-                              imageUrl = menu['gambar'].toString().startsWith('http')
+                            String imageUrl =
+                                'https://images.unsplash.com/photo-1551030173-122aabc4489c?q=90&w=800&auto=format&fit=crop';
+                            if (menu['gambar'] != null &&
+                                menu['gambar'].toString().isNotEmpty) {
+                              imageUrl =
+                                  menu['gambar'].toString().startsWith('http')
                                   ? menu['gambar']
-                                  : 'https://vivalavidacoffeshop.rf.gd/storage/${menu['gambar']}';
+                                  : 'https://vivalavida.kotapintar.my.id/storage/${menu['gambar']}';
                             }
 
                             return CoffeeItemCard(
@@ -298,7 +316,9 @@ class _MenuScreenState extends State<MenuScreen> {
                               price: 'Rp $hargaFormat',
                               originalPrice: null,
                               isPromo: false,
-                              isAvailable: menu['tersedia'] == 1 || menu['tersedia'] == true,
+                              isAvailable:
+                                  menu['tersedia'].toString() == '1' ||
+                                  menu['tersedia'] == true,
                               onAddPressed: () {
                                 Navigator.push(
                                   context,
@@ -309,7 +329,11 @@ class _MenuScreenState extends State<MenuScreen> {
                                       description: menu['deskripsi'] ?? '',
                                       price: hargaFormat,
                                       imageUrl: imageUrl,
-                                      isAvailable: menu['tersedia'] == 1 || menu['tersedia'] == true,
+
+                                      // PASTIKAN BARIS INI JUGA DIUBAH:
+                                      isAvailable:
+                                          menu['tersedia'].toString() == '1' ||
+                                          menu['tersedia'] == true,
                                     ),
                                   ),
                                 );

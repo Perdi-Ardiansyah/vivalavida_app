@@ -56,7 +56,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/register');
+      final url = Uri.parse('https://vivalavida.kotapintar.my.id/api/register');
       final response = await http.post(
         url,
         headers: {

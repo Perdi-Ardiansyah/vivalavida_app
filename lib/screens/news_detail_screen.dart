@@ -24,7 +24,7 @@ class NewsDetailScreen extends StatelessWidget {
     if (article['gambar'] != null) {
       imageUrl = article['gambar'].toString().startsWith('http')
           ? article['gambar']
-          : 'https://vivalavidacoffeshop.rf.gd/storage/${article['gambar']}';
+          : 'https://vivalavida.kotapintar.my.id/storage/${article['gambar']}';
     }
 
     return Scaffold(

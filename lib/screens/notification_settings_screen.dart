@@ -32,7 +32,7 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
 
-      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user');
+      final url = Uri.parse('https://vivalavida.kotapintar.my.id/api/user');
       final response = await http.get(
         url,
         headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'},
@@ -86,7 +86,7 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
         'account_activity': isAccountActivityOn,
       };
 
-      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user/notification-settings');
+      final url = Uri.parse('https://vivalavida.kotapintar.my.id/api/user/notification-settings');
       final response = await http.put(
         url,
         headers: {

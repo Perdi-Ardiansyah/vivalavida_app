@@ -50,7 +50,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
 
-      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user');
+      final url = Uri.parse('https://vivalavida.kotapintar.my.id/api/user');
       final response = await http.get(url, headers: {
         'Accept': 'application/json',
         'Authorization': 'Bearer $token',
@@ -95,7 +95,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       String? token = prefs.getString('auth_token');
 
       // CATATAN: Pastikan Anda membuat rute PUT /api/user/profile di file api.php Laravel
-      final url = Uri.parse('https://vivalavidacoffeshop.rf.gd/api/user/profile');
+      final url = Uri.parse('https://vivalavida.kotapintar.my.id/api/user/profile');
       
       final response = await http.put(
         url,
